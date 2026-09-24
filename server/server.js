@@ -56,6 +56,14 @@ function buildRoster(registry, selfId, selfIp) {
   return out;
 }
 
+/* SDP may arrive as a bare string or as a serialized RTCSessionDescription
+   ({type, sdp}) — accept either as long as it looks like real SDP. */
+function sdpText(v) {
+  if (typeof v === 'string') return v;
+  if (v && typeof v.sdp === 'string') return v.sdp;
+  return '';
+}
+
 /* Validate an inbound {t:'signal'} message. Returns an error string or ''. */
 function validateSignal(msg) {
   if (!msg || typeof msg !== 'object') return 'bad message';
@@ -64,7 +72,7 @@ function validateSignal(msg) {
   if (!p || typeof p !== 'object') return 'missing payload';
   const kinds = ['offer', 'answer', 'ice', 'declined'];
   if (!kinds.includes(p.kind)) return 'unknown signal kind';
-  if ((p.kind === 'offer' || p.kind === 'answer') && typeof p.sdp !== 'object')
+  if ((p.kind === 'offer' || p.kind === 'answer') && sdpText(p.sdp).slice(0, 3) !== 'v=0')
     return 'offer/answer needs sdp';
   if (p.kind === 'ice' && p.candidate !== null && typeof p.candidate !== 'object')
     return 'ice needs a candidate';
