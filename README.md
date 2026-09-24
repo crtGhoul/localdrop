@@ -78,6 +78,14 @@ Heads-up: free-tier servers sleep after ~15 minutes idle, so the first
 connection of the day can take ~30 seconds while it wakes up. After that,
 pairing is instant.
 
+**Keeping the server updated:** the app on GitHub Pages updates itself, but
+the server on Render only picks up new code when Render redeploys it. If you
+connected the Render service to this GitHub repo, it redeploys automatically
+on every push — check the Render dashboard to confirm the latest deploy
+finished. If it didn't, use **Manual Deploy → Deploy latest commit**. You can
+check the app side any time under ⚙️ Matchmaker server → **App version** at
+the bottom of the settings.
+
 **Privacy:** the server never sees your messages or files — it only passes
 along the connection setup (like exchanging phone numbers). The actual
 transfer goes directly between your devices, end-to-end encrypted.
@@ -87,6 +95,12 @@ before.
 
 ## If connecting fails
 
+- **"Matchmaker: offer/answer needs sdp"?** Your Render server is running old
+  code — redeploy it (see "Keeping the server updated" above), then try the
+  call again.
+- **Calls never arrive on the other device?** Make sure both devices show the
+  same **App version** (⚙️ Matchmaker server → bottom of the settings). If one
+  is behind, close all its LocalDrop tabs and reopen it.
 - **Both devices on the same Wi-Fi** — that's the fast, reliable path.
 - **Codes are single-use.** If you tap Share again, the old codes stop working —
   generate fresh ones on both sides.
