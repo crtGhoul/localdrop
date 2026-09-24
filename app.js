@@ -56,6 +56,32 @@ function decodeSDP(code) {
   return { type: o.t, sdp: o.s };
 }
 
+/* Validate a pasted code: right shape AND right kind (offer vs answer). */
+function parseCode(code, wantType) {
+  let d;
+  try { d = decodeSDP(code); } catch (e) { return { error: 'unreadable' }; }
+  if (!d || d.type !== wantType || typeof d.sdp !== 'string' || d.sdp.slice(0, 3) !== 'v=0')
+    return { error: 'wrong-kind' };
+  return { desc: d };
+}
+
+/* If the connection isn't up within `ms`, say so plainly instead of
+   hanging on "connecting…" forever. */
+let connectTimer = null;
+function watchConnect(ms) {
+  clearTimeout(connectTimer);
+  connectTimer = setTimeout(() => {
+    const open = dc && dc.readyState === 'open';
+    if (!open && pc && pc.connectionState !== 'connected') {
+      setStatus('bad', "couldn't connect");
+      alert("Couldn't establish the connection.\n\n" +
+        "• Keep both devices on the same Wi-Fi\n" +
+        "• Codes are single-use: go back and generate fresh codes\n" +
+        "• Make sure the FULL code was copied (they're long)");
+    }
+  }, ms);
+}
+
 /* ---------- views ---------- */
 const VIEWS = ['home', 'host', 'join', 'chat'];
 function go(name) {
@@ -64,7 +90,17 @@ function go(name) {
 }
 
 /* ---------- webrtc state ---------- */
-const RTC_CFG = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+const RTC_CFG = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:openrelay.metered.ca:80' },
+    // Fallback TURN (Open Relay Project — free public relay) for networks
+    // where a direct peer-to-peer path can't be established. The data
+    // channel stays end-to-end encrypted; the relay can't read it.
+    { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+  ],
+};
 let pc = null;
 let dc = null;
 let incoming = null;          // file currently being received
@@ -80,6 +116,7 @@ function teardown() {
   try { if (dc) dc.close(); } catch (e) { /* noop */ }
   try { if (pc) pc.close(); } catch (e) { /* noop */ }
   dc = null; pc = null; incoming = null;
+  clearTimeout(connectTimer);
   sendQueue.length = 0; sending = false;
   setStatus('idle', 'not connected');
 }
@@ -91,7 +128,8 @@ function newPC() {
     if (!pc) return;
     const s = pc.connectionState;
     if (s === 'connected') setStatus('ok', 'connected');
-    else if (s === 'disconnected' || s === 'failed' || s === 'closed') setStatus('bad', 'disconnected');
+    else if (s === 'failed') setStatus('bad', 'connection failed — try fresh codes');
+    else if (s === 'disconnected' || s === 'closed') setStatus('bad', 'disconnected');
     else setStatus('idle', 'connecting…');
   };
   pc.ondatachannel = (e) => { dc = e.channel; wireDC(); };
@@ -146,9 +184,15 @@ function renderQR(text) {
 $('btnConnect').addEventListener('click', async () => {
   const code = $('hostAnswer').value.trim();
   if (!code || !pc) return;
+  const parsed = parseCode(code, 'answer');
+  if (parsed.error) {
+    alert("That doesn't look like a reply code.\n\nCopy the FULL reply code from the other device's Receive screen (tap its Copy button) and paste it here.");
+    return;
+  }
   try {
-    await pc.setRemoteDescription(decodeSDP(code));
+    await pc.setRemoteDescription(parsed.desc);
     setStatus('idle', 'connecting…');
+    watchConnect(20000);
   } catch (e) {
     alert("That reply code didn't work — double-check it and try again.");
   }
@@ -158,10 +202,16 @@ $('btnConnect').addEventListener('click', async () => {
 $('btnMakeReply').addEventListener('click', async () => {
   const code = $('joinCode').value.trim();
   if (!code) return;
+  const parsed = parseCode(code, 'offer');
+  if (parsed.error) {
+    setStatus('bad', 'bad code');
+    alert("That doesn't look like a LocalDrop share code.\n\n• Open LocalDrop on the other device and tap Share\n• Copy the FULL share code (tap its Copy button) or scan its QR\n• Paste it here and try again");
+    return;
+  }
   newPC();
   setStatus('idle', 'generating reply…');
   try {
-    await pc.setRemoteDescription(decodeSDP(code));
+    await pc.setRemoteDescription(parsed.desc);
     await pc.setLocalDescription(await pc.createAnswer());
     await waitGathering();
     $('joinReply').value = encodeSDP(pc.localDescription);
@@ -177,6 +227,7 @@ $('btnMakeReply').addEventListener('click', async () => {
 function wireDC() {
   dc.binaryType = 'arraybuffer';
   dc.onopen = () => {
+    clearTimeout(connectTimer);
     $('messages').innerHTML = '';
     go('chat');
     setStatus('ok', 'connected');

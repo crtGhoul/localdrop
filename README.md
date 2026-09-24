@@ -38,7 +38,18 @@ LocalDrop is installable, so it feels like the real store app:
 ## Notes
 
 - Both devices need to be able to reach each other (same Wi-Fi is the easy case).
-- The page itself needs internet once to load (it's hosted on GitHub Pages + a
-  QR library CDN); the actual file/message transfer then goes direct between devices.
+- The page itself needs internet once to load (it's hosted on GitHub Pages);
+  the actual file/message transfer then goes direct between devices.
 - Files are streamed in 16 KB chunks over an ordered, reliable data channel with
   backpressure, so large files are fine.
+
+## If connecting fails
+
+- **Both devices on the same Wi-Fi** — that's the fast, reliable path.
+- **Codes are single-use.** If you tap Share again, the old codes stop working —
+  generate fresh ones on both sides.
+- **Copy the FULL code.** They're long; use the Copy button rather than
+  retyping. If a code doesn't look right, the app will tell you instead of
+  hanging.
+- If one device is on mobile data and the other on Wi-Fi, the app falls back
+  to a relay server automatically — it may just take a few seconds longer.
