@@ -457,8 +457,16 @@ function validSignalPayload(p) {
   if (!p || typeof p !== 'object') return false;
   if (p.kind === 'declined') return true;
   if (p.kind === 'ice') return p.candidate === null || typeof p.candidate === 'object';
-  if (p.kind === 'offer' || p.kind === 'answer') return !!p.sdp && typeof p.sdp === 'object';
+  if (p.kind === 'offer' || p.kind === 'answer') return sdpStr(p.sdp).slice(0, 3) === 'v=0';
   return false;
+}
+
+/* SDP may arrive as a bare string or as a serialized RTCSessionDescription
+   ({type, sdp}) — normalize to the string form WebRTC APIs require. */
+function sdpStr(v) {
+  if (typeof v === 'string') return v;
+  if (v && typeof v.sdp === 'string') return v.sdp;
+  return '';
 }
 
 function avatarLetter(name) {
@@ -647,7 +655,7 @@ function callDevice(id, name) {
   (async () => {
     try {
       await pc.setLocalDescription(await pc.createOffer());
-      sigSend({ t: 'signal', to: id, payload: { kind: 'offer', sdp: pc.localDescription } });
+      sigSend({ t: 'signal', to: id, payload: { kind: 'offer', sdp: pc.localDescription.sdp } });
       watchConnect(20000);
     } catch (e) { endCallAttempt("couldn't start the call"); }
   })();
@@ -666,7 +674,9 @@ function onRemoteSignal(from, fromName, p) {
     $('callModal').classList.remove('hidden');
   } else if (p.kind === 'answer') {
     if (outgoingCall && outgoingCall.id === from && pc) {
-      pc.setRemoteDescription({ type: 'answer', sdp: p.sdp })
+      const sdp = sdpStr(p.sdp);
+      if (!sdp) { endCallAttempt("couldn't connect"); return; }
+      pc.setRemoteDescription({ type: 'answer', sdp })
         .catch(() => endCallAttempt("couldn't connect"));
     }
   } else if (p.kind === 'ice') {
@@ -698,9 +708,11 @@ async function acceptCall() {
     if (e.candidate) sigSend({ t: 'signal', to: inv.from, payload: { kind: 'ice', candidate: e.candidate } });
   };
   try {
-    await pc.setRemoteDescription({ type: 'offer', sdp: inv.sdp });
+    const offerSdp = sdpStr(inv.sdp);
+    if (!offerSdp) throw new Error('bad offer sdp');
+    await pc.setRemoteDescription({ type: 'offer', sdp: offerSdp });
     await pc.setLocalDescription(await pc.createAnswer());
-    sigSend({ t: 'signal', to: inv.from, payload: { kind: 'answer', sdp: pc.localDescription } });
+    sigSend({ t: 'signal', to: inv.from, payload: { kind: 'answer', sdp: pc.localDescription.sdp } });
     watchConnect(20000);
   } catch (e) { endCallAttempt("couldn't connect"); }
 }
