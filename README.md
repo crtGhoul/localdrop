@@ -24,6 +24,22 @@ code exchange (one time per session):
 
 That's it — no build step, it's pure static HTML/CSS/JS.
 
+### The site doesn't update instantly
+
+After you push new files, GitHub Pages has to rebuild and deploy the site —
+this usually takes **a minute or two**, but can be longer when GitHub is busy.
+To check progress: open your repo → **Actions** tab → the latest
+*pages build and deployment* run, or **Settings → Pages** shows the last
+deployed commit. Wait for it to finish, then refresh the page on your devices.
+
+If the old version hangs around after a deploy:
+
+- **Hard-refresh:** hold the refresh icon on mobile Safari, or Ctrl/Cmd+Shift+R
+  on desktop.
+- **Service worker cache:** this app caches itself for offline use. If a hard
+  refresh doesn't work, close every LocalDrop tab/window on the device and
+  reopen — that lets the new service worker take over.
+
 ## Install as an app (PWA)
 
 LocalDrop is installable, so it feels like the real store app:
