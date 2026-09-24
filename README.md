@@ -43,6 +43,32 @@ LocalDrop is installable, so it feels like the real store app:
 - Files are streamed in 16 KB chunks over an ordered, reliable data channel with
   backpressure, so large files are fine.
 
+## Tap-to-connect server
+
+Tired of copying codes? Run the tiny **matchmaker server** in `server/` and
+the app shows a **Nearby & ready** list — tap a device to connect. Devices
+you've connected to are remembered under **Known devices**.
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/crtGhoul/localdrop)
+
+1. Click **Deploy to Render** above.
+2. Create (or sign in to) a free Render account — it builds and starts the
+   server automatically.
+3. Copy your service URL (looks like
+   `https://localdrop-signaling.onrender.com`), change `https://` to `wss://`,
+   and paste it into the **Matchmaker server** field in the app's settings.
+
+Heads-up: free-tier servers sleep after ~15 minutes idle, so the first
+connection of the day can take ~30 seconds while it wakes up. After that,
+pairing is instant.
+
+**Privacy:** the server never sees your messages or files — it only passes
+along the connection setup (like exchanging phone numbers). The actual
+transfer goes directly between your devices, end-to-end encrypted.
+
+No server? The manual Share / Receive code flow keeps working exactly as
+before.
+
 ## If connecting fails
 
 - **Both devices on the same Wi-Fi** — that's the fast, reliable path.

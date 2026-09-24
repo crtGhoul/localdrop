@@ -1,6 +1,6 @@
 /* LocalDrop service worker — caches the app shell so the installed app
    opens instantly and even works offline on your local network. */
-const CACHE = 'localdrop-v2';
+const CACHE = 'localdrop-v3';
 const ASSETS = [
   './',
   './index.html',

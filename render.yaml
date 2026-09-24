@@ -1,0 +1,14 @@
+# Render blueprint for the LocalDrop signaling server.
+# One-click deploy: https://render.com/deploy?repo=https://github.com/crtGhoul/localdrop
+services:
+  - type: web
+    name: localdrop-signaling
+    runtime: node
+    plan: free
+    rootDir: server
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: 20

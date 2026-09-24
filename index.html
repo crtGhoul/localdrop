@@ -41,6 +41,33 @@
     </div>
     <button id="installBtn" class="btn primary hidden" style="margin-top:14px">⬇ Install app</button>
     <p id="iosHint" class="hint hidden">📲 On iPhone: tap <b>Share</b> → <b>Add to Home Screen</b> to install LocalDrop like an app.</p>
+
+    <!-- TAP-TO-CONNECT -->
+    <section class="panel" id="tapPanel">
+      <div class="rowline">
+        <label class="fld"><span>This device</span>
+          <input id="nameInput" type="text" maxlength="24" autocomplete="off" placeholder="Naming…">
+        </label>
+        <span id="sigDot" class="sigdot" title="matchmaker status"></span>
+      </div>
+      <h3>Nearby &amp; ready</h3>
+      <p id="sigNotice" class="hint hidden"></p>
+      <div id="rosterList" class="devlist"></div>
+      <div id="callState" class="hidden"></div>
+      <h3>Known devices</h3>
+      <div id="knownList" class="devlist"></div>
+      <details class="settings">
+        <summary>⚙️ Matchmaker server</summary>
+        <label class="fld"><span>Server URL</span>
+          <input id="serverInput" type="url" inputmode="url" autocomplete="off"
+                 placeholder="wss://your-server.onrender.com">
+        </label>
+        <p class="hint">No server yet? Deploy your own free one — see
+          <b>Tap-to-connect server</b> in the README, then paste the URL here.
+          Without a server you can still use Share / Receive codes below.</p>
+      </details>
+    </section>
+
     <p class="hint">🔒 Peer-to-peer &amp; encrypted (WebRTC). Open this page on both devices — phones, tablets &amp; computers on the same Wi-Fi.</p>
   </main>
 
@@ -86,6 +113,19 @@
       <button id="btnSend" class="btn primary">Send</button>
     </div>
   </main>
+
+  <!-- INCOMING CALL -->
+  <div id="callModal" class="modal hidden">
+    <div class="sheet">
+      <div class="ringicon">📞</div>
+      <h2 id="callTitle">Incoming connection</h2>
+      <p class="hint" id="callSub">They'll be able to send you files, photos and messages.</p>
+      <div class="mrow">
+        <button id="btnAccept" class="btn primary">Accept</button>
+        <button id="btnDecline" class="btn">Decline</button>
+      </div>
+    </div>
+  </div>
 </div>
 <script src="app.js"></script>
 </body>
