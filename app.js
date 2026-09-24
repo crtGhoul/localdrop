@@ -66,15 +66,17 @@ function parseCode(code, wantType) {
 }
 
 /* If the connection isn't up within `ms`, say so plainly instead of
-   hanging on "connecting…" forever. */
+   hanging on "connecting…" forever — and release the call state so a
+   later tap doesn't get auto-declined as "busy". */
 let connectTimer = null;
 function watchConnect(ms) {
   clearTimeout(connectTimer);
   connectTimer = setTimeout(() => {
     const open = dc && dc.readyState === 'open';
     if (!open && pc && pc.connectionState !== 'connected') {
-      setStatus('bad', "couldn't connect");
-      alert(viaSignal
+      const wasSignal = viaSignal;
+      endCallAttempt("couldn't connect");
+      alert(wasSignal
         ? "Couldn't establish the connection.\n\n• Make sure both devices are online\n• Try tapping the device again in a moment"
         : "Couldn't establish the connection.\n\n" +
           "• Keep both devices on the same Wi-Fi\n" +
