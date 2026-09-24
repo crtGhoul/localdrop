@@ -376,34 +376,6 @@ async function pumpQueue() {
   pumpQueue();
 }
 
-/* ---------- wiring ---------- */
-initTapToConnect();
-$('btnHost').addEventListener('click', () => { go('host'); hostStart(); });
-$('btnJoin').addEventListener('click', () => {
-  $('replyWrap').classList.add('hidden');
-  $('joinCode').value = '';
-  $('joinReply').value = '';
-  go('join');
-});
-document.querySelectorAll('[data-go]').forEach((b) =>
-  b.addEventListener('click', () => { teardown(); go(b.getAttribute('data-go')); })
-);
-$('copyHost').addEventListener('click', () => copyText($('hostCode').value));
-$('copyJoin').addEventListener('click', () => copyText($('joinReply').value));
-$('hostCode').addEventListener('focus', function () { this.select(); });
-$('joinReply').addEventListener('focus', function () { this.select(); });
-$('btnSend').addEventListener('click', sendText);
-$('textInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendText(); });
-$('fileInput').addEventListener('change', (e) => {
-  Array.from(e.target.files).forEach(enqueueFile);
-  e.target.value = '';
-});
-document.addEventListener('paste', (e) => {
-  if ($('view-chat').classList.contains('hidden')) return;
-  const files = (e.clipboardData && e.clipboardData.files) || [];
-  Array.from(files).forEach(enqueueFile);
-});
-
 /* ---------- tap-to-connect: identity & storage ---------- */
 const LS_ID = 'ld_id', LS_NAME = 'ld_name', LS_SERVER = 'ld_server', LS_KNOWN = 'ld_known';
 
@@ -780,6 +752,34 @@ function initTapToConnect() {
   renderKnown();
   sigConnect();
 }
+
+/* ---------- wiring ---------- */
+initTapToConnect();
+$('btnHost').addEventListener('click', () => { go('host'); hostStart(); });
+$('btnJoin').addEventListener('click', () => {
+  $('replyWrap').classList.add('hidden');
+  $('joinCode').value = '';
+  $('joinReply').value = '';
+  go('join');
+});
+document.querySelectorAll('[data-go]').forEach((b) =>
+  b.addEventListener('click', () => { teardown(); go(b.getAttribute('data-go')); })
+);
+$('copyHost').addEventListener('click', () => copyText($('hostCode').value));
+$('copyJoin').addEventListener('click', () => copyText($('joinReply').value));
+$('hostCode').addEventListener('focus', function () { this.select(); });
+$('joinReply').addEventListener('focus', function () { this.select(); });
+$('btnSend').addEventListener('click', sendText);
+$('textInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendText(); });
+$('fileInput').addEventListener('change', (e) => {
+  Array.from(e.target.files).forEach(enqueueFile);
+  e.target.value = '';
+});
+document.addEventListener('paste', (e) => {
+  if ($('view-chat').classList.contains('hidden')) return;
+  const files = (e.clipboardData && e.clipboardData.files) || [];
+  Array.from(files).forEach(enqueueFile);
+});
 
 /* ---------- PWA: service worker + install prompt ---------- */
 if ('serviceWorker' in navigator) {
