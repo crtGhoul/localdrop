@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>LocalDrop — send pics, files, text & links nearby</title>
+<meta name="description" content="A LocalSend-style web app: send photos, files, text messages and links between nearby devices. No signup, no server, peer-to-peer.">
+<meta name="theme-color" content="#0f172a">
+<link rel="manifest" href="manifest.json">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="LocalDrop">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📡</text></svg>">
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="logo">📡 LocalDrop</div>
+    <div id="status" class="status idle"><span class="dot"></span><span id="statusText">not connected</span></div>
+  </header>
+
+  <!-- HOME -->
+  <main id="view-home" class="view">
+    <h1>Send anything<br>to devices <em>near you.</em></h1>
+    <p class="sub">Photos, files, text &amp; links — straight over your local network. No account, no cloud, no app install.</p>
+    <div class="cards">
+      <button class="card" id="btnHost">
+        <span class="card-icon">📤</span>
+        <span class="card-title">Share</span>
+        <span class="card-desc">Host a session &amp; get a code</span>
+      </button>
+      <button class="card" id="btnJoin">
+        <span class="card-icon">📥</span>
+        <span class="card-title">Receive</span>
+        <span class="card-desc">Join with a code</span>
+      </button>
+    </div>
+    <button id="installBtn" class="btn primary hidden" style="margin-top:14px">⬇ Install app</button>
+    <p id="iosHint" class="hint hidden">📲 On iPhone: tap <b>Share</b> → <b>Add to Home Screen</b> to install LocalDrop like an app.</p>
+    <p class="hint">🔒 Peer-to-peer &amp; encrypted (WebRTC). Open this page on both devices — phones, tablets &amp; computers on the same Wi-Fi.</p>
+  </main>
+
+  <!-- HOST -->
+  <main id="view-host" class="view hidden">
+    <button class="back" data-go="home">← back</button>
+    <h2>Share</h2>
+    <div class="step"><span class="n">1</span><p>Have the other device scan or copy your code:</p></div>
+    <div id="qr" class="qr"></div>
+    <div class="codeRow">
+      <textarea id="hostCode" readonly rows="3" placeholder="generating…"></textarea>
+      <button id="copyHost" class="btn small">Copy</button>
+    </div>
+    <div class="step"><span class="n">2</span><p>Paste their reply code here:</p></div>
+    <textarea id="hostAnswer" rows="3" placeholder="Paste reply code…"></textarea>
+    <button id="btnConnect" class="btn primary">Connect</button>
+  </main>
+
+  <!-- JOIN -->
+  <main id="view-join" class="view hidden">
+    <button class="back" data-go="home">← back</button>
+    <h2>Receive</h2>
+    <div class="step"><span class="n">1</span><p>Paste the sharer's code:</p></div>
+    <textarea id="joinCode" rows="3" placeholder="Paste share code…"></textarea>
+    <button id="btnMakeReply" class="btn primary">Create my reply code</button>
+    <div id="replyWrap" class="hidden">
+      <div class="step"><span class="n">2</span><p>Give this reply code back to the sharer:</p></div>
+      <div class="codeRow">
+        <textarea id="joinReply" readonly rows="3"></textarea>
+        <button id="copyJoin" class="btn small">Copy</button>
+      </div>
+      <p class="hint">Waiting for them to paste it and connect…</p>
+    </div>
+  </main>
+
+  <!-- CHAT -->
+  <main id="view-chat" class="view hidden">
+    <button class="back" data-go="home">⏻ disconnect</button>
+    <div id="messages" class="messages"></div>
+    <div class="composer">
+      <label class="attach" title="Send photo or file">📎<input type="file" id="fileInput" hidden multiple></label>
+      <input id="textInput" type="text" placeholder="Message, link…" autocomplete="off" enterkeyhint="send">
+      <button id="btnSend" class="btn primary">Send</button>
+    </div>
+  </main>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
