@@ -208,7 +208,11 @@ $('btnConnect').addEventListener('click', async () => {
 /* ---------- join flow ---------- */
 $('btnMakeReply').addEventListener('click', async () => {
   const code = $('joinCode').value.trim();
-  if (!code) return;
+  if (!code) {
+    setStatus('bad', 'code needed');
+    alert("Paste the sharer's code first.\n\n• Open LocalDrop on the other device and tap Share\n• Copy the FULL share code (tap its Copy button) or scan its QR\n• Paste it here, then tap “Create my reply code”");
+    return;
+  }
   const parsed = parseCode(code, 'offer');
   if (parsed.error) {
     setStatus('bad', 'bad code');
