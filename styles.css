@@ -289,6 +289,11 @@ details.howto .hint { margin-top: 8px; }
 .serverline a { color: var(--acc); text-decoration: underline; text-underline-offset: 2px; }
 details.settings a.deploylink { color: var(--acc); font-weight: 600; }
 
+/* private mode toggle */
+.privrow { display: flex; align-items: center; gap: 8px; font-size: 14px; margin: 0 0 8px; cursor: pointer; color: var(--txt); }
+.privrow input { width: 18px; height: 18px; accent-color: var(--acc); flex: none; }
+.privrow .hint { margin: 0; }
+
 /* update-available toast */
 #updateToast {
   position: fixed; left: 50%; bottom: 18px; z-index: 60;

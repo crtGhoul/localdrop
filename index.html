@@ -4,7 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>LocalDrop — send pics, files, text & links nearby</title>
-<meta name="description" content="A LocalSend-style web app: send photos, files, text messages and links between nearby devices. No signup, no server, peer-to-peer.">
+<meta name="description" content="A LocalSend-style web app: send photos, files, text messages and links between nearby devices. No signup, no cloud, peer-to-peer.">
+<meta property="og:title" content="LocalDrop — send pics, files, text & links nearby">
+<meta property="og:description" content="A LocalSend-style web app: send photos, files, text messages and links between nearby devices. No signup, no cloud, peer-to-peer.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://crtghoul.github.io/localdrop/">
+<meta property="og:image" content="https://crtghoul.github.io/localdrop/icon-512.png">
+<meta name="twitter:card" content="summary">
 <meta name="theme-color" content="#0f172a">
 <link rel="manifest" href="manifest.json">
 <meta name="mobile-web-app-capable" content="yes">
@@ -51,6 +57,7 @@
         <span id="sigDot" class="sigdot" title="matchmaker status"></span>
       </div>
       <p class="hint serverline">🔗 Server: <a id="serverLink" href="https://localdrop-l8ly.onrender.com" target="_blank" rel="noopener">localdrop-l8ly.onrender.com</a></p>
+      <label class="privrow"><input type="checkbox" id="privToggle"> 🙈 Private mode <span class="hint">— hide this device from everyone's list</span></label>
       <h3>Nearby &amp; ready</h3>
       <details class="howto">
         <summary>How does tap-to-connect work?</summary>
@@ -59,7 +66,7 @@
           <li>Each device shows up in the other's <b>Nearby &amp; ready</b> list — tap one to call it.</li>
           <li>Accept on the other device. Done — send anything.</li>
         </ol>
-        <p class="hint">A free matchmaker server just introduces your devices — your photos and files then fly <b>directly</b> between them (WebRTC), never through the server. First visit of the day can take ~30–60s: the free server sleeps when idle. No devices showing? You can always pair with a Share / Receive code instead.</p>
+        <p class="hint">A free matchmaker server just introduces your devices — your photos and files then fly <b>directly</b> between them (WebRTC), never through the server. Only devices on the <b>same network</b> can see each other in the list, and 🙈 Private mode hides you from everyone (you can still call out). First visit of the day can take ~30–60s: the free server sleeps when idle. No devices showing? You can always pair with a Share / Receive code instead.</p>
       </details>
       <p id="sigNotice" class="hint hidden"></p>
       <div id="rosterList" class="devlist"></div>
@@ -77,7 +84,7 @@
           (takes ~2 minutes), then paste its wss:// URL above — or clear the
           field to turn tap-to-connect off. Without a server you can still use
           Share / Receive codes below.</p>
-        <p class="hint">App version: <b id="appVersion">v13</b></p>
+        <p class="hint">App version: <b id="appVersion">v14</b></p>
       </details>
     </section>
 

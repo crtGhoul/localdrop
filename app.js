@@ -134,6 +134,7 @@ function teardown() {
   viaSignal = false; peerId = null; peerName = '';
   outgoingCall = null; incomingOffer = null;
   hideRinging();
+  stopRing();
   $('callModal').classList.add('hidden');
   setStatus('idle', 'not connected');
   const pl = $('peerLabel');
@@ -259,6 +260,7 @@ function wireDC() {
     try { dc.send(JSON.stringify({ t: 'hello', v: APP_V })); } catch (e) { /* noop */ }
     // a signaled call just landed: clear call UI and remember the device
     hideRinging();
+    stopRing();
     $('callModal').classList.add('hidden');
     outgoingCall = null; incomingOffer = null;
     if (peerId) rememberDevice(peerId, peerName);
@@ -699,7 +701,7 @@ async function handleFolderDrop(items) {
 }
 
 /* ---------- tap-to-connect: identity & storage ---------- */
-const LS_ID = 'ld_id', LS_NAME = 'ld_name', LS_SERVER = 'ld_server', LS_KNOWN = 'ld_known';
+const LS_ID = 'ld_id', LS_NAME = 'ld_name', LS_SERVER = 'ld_server', LS_KNOWN = 'ld_known', LS_PRIV = 'ld_private';
 /* Built-in free matchmaker (Render). Used unless the user sets their own server
    in settings — or explicitly clears the field to disable tap-to-connect. */
 const DEFAULT_SERVER = 'wss://localdrop-l8ly.onrender.com';
@@ -813,6 +815,10 @@ function watchForUpdates() {
       });
     });
     setInterval(check, 30 * 60 * 1000); // re-check every 30 min on long-lived tabs
+    // also check whenever the tab becomes visible again (e.g. phone unlocked)
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) check();
+    });
   }).catch(() => {});
 }
 function showUpdateToast() {
@@ -846,6 +852,11 @@ function sigSend(o) {
   if (sig && sig.readyState === 1) {
     try { sig.send(JSON.stringify(o)); } catch (e) { /* noop */ }
   }
+}
+
+/* (Re)register with the matchmaker, including the private-mode flag. */
+function sendRegister() {
+  sigSend({ t: 'register', id: myId, name: myName, private: storeGet(LS_PRIV) === '1' });
 }
 
 function setSigDot(s) {
@@ -910,7 +921,7 @@ function sigConnect() {
     sigBackoff = 2000;
     setSigDot('on');
     showSigNotice('');
-    sigSend({ t: 'register', id: myId, name: myName });
+    sendRegister();
     clearInterval(hbTimer);
     hbTimer = setInterval(() => sigSend({ t: 'heartbeat' }), 25000);
   };
@@ -1024,6 +1035,65 @@ function hideRinging() {
   if (el) { el.classList.add('hidden'); el.innerHTML = ''; }
 }
 
+/* ---------- incoming-call ringtone + vibration ----------
+   Pure Web Audio (no sound files): classic two-tone ring every 3s.
+   AudioContext is unlocked on the first user gesture (autoplay policy);
+   vibration covers Android (iOS Safari has no vibrate API). */
+let ringTimer = null, ringCtx = null;
+function ensureRingCtx() {
+  try {
+    if (!ringCtx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) ringCtx = new AC();
+    }
+    if (ringCtx && ringCtx.state === 'suspended') {
+      const p = ringCtx.resume();
+      if (p && p.catch) p.catch(() => {});
+    }
+  } catch (e) { /* noop */ }
+  return ringCtx;
+}
+if (typeof window !== 'undefined' && window.addEventListener) {
+  const unlockAudio = () => ensureRingCtx();
+  window.addEventListener('pointerdown', unlockAudio, { once: true });
+  window.addEventListener('keydown', unlockAudio, { once: true });
+}
+function playRingOnce(ctx, when) {
+  [440, 480].forEach((f) => {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'sine';
+    o.frequency.value = f;
+    g.gain.setValueAtTime(0.0001, when);
+    g.gain.exponentialRampToValueAtTime(0.22, when + 0.05);
+    g.gain.setValueAtTime(0.22, when + 0.9);
+    g.gain.exponentialRampToValueAtTime(0.0001, when + 1.0);
+    o.connect(g);
+    g.connect(ctx.destination);
+    o.start(when);
+    o.stop(when + 1.05);
+  });
+}
+function startRing() {
+  stopRing();
+  ensureRingCtx();
+  const buzz = () => { try { if (navigator.vibrate) navigator.vibrate([600, 300, 600]); } catch (e) { /* noop */ } };
+  const ring = () => {
+    buzz();
+    try {
+      if (ringCtx) {
+        if (ringCtx.state === 'suspended') ensureRingCtx();
+        playRingOnce(ringCtx, ringCtx.currentTime + 0.05);
+      }
+    } catch (e) { /* noop */ }
+  };
+  ring();
+  ringTimer = setInterval(ring, 3000);
+}
+function stopRing() {
+  if (ringTimer) { clearInterval(ringTimer); ringTimer = null; }
+  try { if (navigator.vibrate) navigator.vibrate(0); } catch (e) { /* noop */ }
+}
+
 /* Outgoing: tap a device -> send offer through the matchmaker (trickle ICE). */
 function callDevice(id, name) {
   if (outgoingCall || incomingOffer) return;
@@ -1058,6 +1128,7 @@ function onRemoteSignal(from, fromName, p) {
     incomingOffer = { from, fromName, sdp: p.sdp };
     $('callTitle').textContent = fromName + ' wants to connect';
     $('callModal').classList.remove('hidden');
+    startRing();
   } else if (p.kind === 'answer') {
     if (outgoingCall && outgoingCall.id === from && pc) {
       const sdp = sdpStr(p.sdp);
@@ -1077,6 +1148,7 @@ function onRemoteSignal(from, fromName, p) {
     } else if (incomingOffer && incomingOffer.from === from) {
       incomingOffer = null; // caller hung up while ringing us
       $('callModal').classList.add('hidden');
+      stopRing();
       setStatus('idle', 'not connected');
     }
   }
@@ -1085,6 +1157,7 @@ function onRemoteSignal(from, fromName, p) {
 async function acceptCall() {
   const inv = incomingOffer;
   incomingOffer = null;
+  stopRing();
   $('callModal').classList.add('hidden');
   if (!inv) return;
   newPC();
@@ -1106,6 +1179,7 @@ async function acceptCall() {
 function declineCall() {
   const inv = incomingOffer;
   incomingOffer = null;
+  stopRing();
   $('callModal').classList.add('hidden');
   if (inv) sigSend({ t: 'signal', to: inv.from, payload: { kind: 'declined' } });
   setStatus('idle', 'not connected');
@@ -1139,7 +1213,7 @@ function initTapToConnect() {
     myName = nameInp.value.trim().slice(0, 24) || suggestName('');
     nameInp.value = myName;
     storeSet(LS_NAME, myName);
-    sigSend({ t: 'register', id: myId, name: myName });
+    sendRegister();
   });
   const srvInp = $('serverInput');
   srvInp.value = storeGet(LS_SERVER) || '';
@@ -1149,6 +1223,12 @@ function initTapToConnect() {
     srvInp.value = u;
     storeSet(LS_SERVER, u);
     sigConnect();
+  });
+  const privTgl = $('privToggle');
+  privTgl.checked = storeGet(LS_PRIV) === '1';
+  privTgl.addEventListener('change', () => {
+    storeSet(LS_PRIV, privTgl.checked ? '1' : '0');
+    sendRegister();
   });
   $('btnAccept').addEventListener('click', acceptCall);
   $('btnDecline').addEventListener('click', declineCall);

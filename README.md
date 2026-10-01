@@ -104,6 +104,10 @@ the bottom of the settings.
 **Privacy:** the server never sees your messages or files — it only passes
 along the connection setup (like exchanging phone numbers). The actual
 transfer goes directly between your devices, end-to-end encrypted.
+Only devices on the **same network** appear in each other's device list,
+and **🙈 Private mode** (tap panel) hides your device from the list entirely
+while still letting you call out. Incoming calls always need your Accept —
+nobody can silently connect to you.
 
 No server? The manual Share / Receive code flow keeps working exactly as
 before.
