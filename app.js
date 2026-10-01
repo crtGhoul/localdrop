@@ -795,6 +795,43 @@ function avatarLetter(name) {
   return m ? m[0].toUpperCase() : '?';
 }
 
+/* ---------- service worker update prompter ----------
+   If a newer version shipped while this tab runs the old one, offer a
+   one-tap refresh instead of silently staying stale. */
+function watchForUpdates() {
+  const sw = navigator.serviceWorker;
+  if (!sw || !sw.getRegistration) return;
+  navigator.serviceWorker.getRegistration().then((reg) => {
+    if (!reg) return;
+    const check = () => { try { const p = reg.update(); if (p && p.catch) p.catch(() => {}); } catch (e) { /* noop */ } };
+    check(); // ask for a fresh sw.js now, not whenever the browser feels like it
+    reg.addEventListener('updatefound', () => {
+      const nw = reg.installing;
+      if (!nw) return;
+      nw.addEventListener('statechange', () => {
+        if (nw.state === 'installed' && navigator.serviceWorker.controller) showUpdateToast();
+      });
+    });
+    setInterval(check, 30 * 60 * 1000); // re-check every 30 min on long-lived tabs
+  }).catch(() => {});
+}
+function showUpdateToast() {
+  let t = document.getElementById('updateToast');
+  if (t) { t.classList.add('show'); return; }
+  t = document.createElement('div');
+  t.id = 'updateToast';
+  const s = document.createElement('span');
+  s.textContent = '✨ New version available';
+  const b = document.createElement('button');
+  b.textContent = 'Refresh';
+  b.addEventListener('click', () => window.location.reload());
+  t.appendChild(s);
+  t.appendChild(b);
+  document.body.appendChild(t);
+  const show = () => t.classList.add('show');
+  if (window.requestAnimationFrame) window.requestAnimationFrame(show); else show();
+}
+
 /* ---------- tap-to-connect: matchmaker socket ---------- */
 let myId = null, myName = '';
 let sig = null, sigGen = 0, sigTimer = null, sigWakeTimer = null, hbTimer = null;
@@ -1121,6 +1158,7 @@ function initTapToConnect() {
 
 /* ---------- wiring ---------- */
 initTapToConnect();
+watchForUpdates();
 $('btnHost').addEventListener('click', () => { go('host'); hostStart(); });
 $('btnJoin').addEventListener('click', () => {
   $('replyWrap').classList.add('hidden');
