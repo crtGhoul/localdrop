@@ -94,6 +94,7 @@ function go(name) {
 }
 
 /* ---------- webrtc state ---------- */
+const APP_V = 9; // protocol version: hello handshake, file-ask approval, file-cancel, clip
 const RTC_CFG = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
@@ -107,9 +108,13 @@ const RTC_CFG = {
 };
 let pc = null;
 let dc = null;
+let peerV = 0;            // protocol version of the connected peer (0 = unknown/legacy)
 let incoming = null;          // file currently being received
 const sendQueue = [];
 let sending = false;
+let activeSend = null;        // {id, cancelled} — transfer currently on the wire
+const approvalWaiters = {};   // id -> resolve fn for file-ask approval
+const pendingAsks = {};       // id -> {meta, el} — incoming files awaiting our verdict
 
 function setStatus(state, text) {
   $('status').className = 'status ' + state;
@@ -122,12 +127,17 @@ function teardown() {
   dc = null; pc = null; incoming = null;
   clearTimeout(connectTimer);
   sendQueue.length = 0; sending = false;
+  activeSend = null; peerV = 0;
+  Object.keys(approvalWaiters).forEach((id) => { try { approvalWaiters[id]('gone'); } catch (e) {} delete approvalWaiters[id]; });
+  Object.keys(pendingAsks).forEach((id) => delete pendingAsks[id]);
   // tap-to-connect call state (the matchmaker socket itself stays up)
   viaSignal = false; peerId = null; peerName = '';
   outgoingCall = null; incomingOffer = null;
   hideRinging();
   $('callModal').classList.add('hidden');
   setStatus('idle', 'not connected');
+  const pl = $('peerLabel');
+  if (pl) pl.textContent = '…';
 }
 
 function newPC() {
@@ -242,6 +252,11 @@ function wireDC() {
   dc.onopen = () => {
     clearTimeout(connectTimer);
     $('messages').innerHTML = '';
+    $('peerLabel').textContent = peerName ? '↔ ' + peerName : 'connected';
+    // protocol handshake: announce our version so the peer knows which
+    // frames we understand (file-ask approval, file-cancel, clip).
+    peerV = 0;
+    try { dc.send(JSON.stringify({ t: 'hello', v: APP_V })); } catch (e) { /* noop */ }
     // a signaled call just landed: clear call UI and remember the device
     hideRinging();
     $('callModal').classList.add('hidden');
@@ -249,7 +264,7 @@ function wireDC() {
     if (peerId) rememberDevice(peerId, peerName);
     go('chat');
     setStatus('ok', 'connected');
-    sysMsg('Connected 🔗 — send photos, files, text or links.');
+    sysMsg('Connected 🔗 — send photos, files, folders, text, links, or your clipboard (📋).');
   };
   dc.onmessage = onData;
   dc.onclose = () => {
@@ -262,10 +277,22 @@ function onData(e) {
   if (typeof e.data === 'string') {
     let m;
     try { m = JSON.parse(e.data); } catch (err) { return; }
+    if (!m || typeof m.t !== 'string') return;
     if (m.t === 'msg') addText(false, m.text);
+    else if (m.t === 'hello') { peerV = Math.max(0, m.v | 0); }
+    else if (m.t === 'clip' && typeof m.text === 'string') {
+      addText(false, m.text);
+      sysMsg('📋 Clipboard received' + (peerName ? ' from ' + peerName : ''));
+    }
     else if (m.t === 'file-meta') {
-      incoming = { meta: m, parts: [], got: 0, el: fileCard(false, m.name, m.size) };
-    } else if (m.t === 'file-end' && incoming && incoming.meta.id === m.id) {
+      // legacy path (peer < v9): files arrive unannounced, auto-accepted
+      incoming = { meta: m, parts: [], got: 0, el: fileCard(false, dispName(m), m.size, null, m.mime) };
+    } else if (m.t === 'file-ask') onFileAsk(m);
+    else if ((m.t === 'file-ok' || m.t === 'file-no') && approvalWaiters[m.id]) {
+      approvalWaiters[m.id](m.t === 'file-ok' ? 'ok' : 'no');
+    }
+    else if (m.t === 'file-cancel' && m.id) onFileCancel(m.id);
+    else if (m.t === 'file-end' && incoming && incoming.meta.id === m.id) {
       finishFile();
     }
   } else if (incoming) {
@@ -297,19 +324,65 @@ function addText(mine, text) {
   $('messages').appendChild(d);
   scrollDown();
 }
-function fileCard(mine, name, size) {
+function basename(p) {
+  return String(p || '').split('/').pop();
+}
+function dispName(m) {
+  return (m && (m.path || m.name)) || 'file';
+}
+function iconFor(mime) {
+  mime = String(mime || '');
+  if (mime.indexOf('image/') === 0) return '🖼️';
+  if (mime.indexOf('video/') === 0) return '🎬';
+  if (mime.indexOf('audio/') === 0) return '🎵';
+  if (mime === 'application/pdf') return '📕';
+  if (/zip|rar|7z|tar|gzip/.test(mime)) return '🗜️';
+  return '📄';
+}
+function fmtSpeed(bps) {
+  if (bps < 1024) return Math.round(bps) + ' B/s';
+  if (bps < 1048576) return (bps / 1024).toFixed(1) + ' KB/s';
+  return (bps / 1048576).toFixed(1) + ' MB/s';
+}
+function fileCard(mine, name, size, id, mime) {
   const d = document.createElement('div');
   d.className = 'bubble ' + (mine ? 'mine' : 'theirs');
   d.innerHTML =
-    '<div class="fbody"><div class="fname">' + esc(name) + '</div>' +
-    '<div class="fsize">' + fmtSize(size) + '</div>' +
-    '<div class="track"><div class="bar"></div></div></div>';
+    '<div class="fbody"><div class="frow">' +
+    '<span class="fic">' + iconFor(mime) + '</span>' +
+    '<div class="finfo"><div class="fname">' + esc(name) + '</div>' +
+    '<div class="fsize">' + fmtSize(size) + '</div></div>' +
+    (id ? '<button class="xbtn" title="Cancel transfer">✕</button>' : '') +
+    '</div>' +
+    '<div class="fnote"></div>' +
+    '<div class="track"><div class="bar busy"></div></div>' +
+    '<div class="spd"></div></div>';
   $('messages').appendChild(d);
   scrollDown();
   return d;
 }
 function setProg(el, p) {
-  el.querySelector('.bar').style.width = Math.min(100, p * 100) + '%';
+  const bar = el.querySelector('.bar');
+  if (!bar) return;
+  bar.style.width = Math.min(100, p * 100) + '%';
+  bar.classList.toggle('busy', p < 1);
+}
+function setCardNote(el, t) {
+  const n = el.querySelector('.fnote');
+  if (!n) return;
+  n.textContent = t || '';
+  n.style.display = t ? 'block' : 'none';
+}
+function setSpeed(el, bps) {
+  const s = el.querySelector('.spd');
+  if (!s) return;
+  s.textContent = bps > 0 ? fmtSpeed(bps) : '';
+}
+function markDone(el) {
+  setProg(el, 1);
+  setSpeed(el, 0);
+  const x = el.querySelector('.xbtn');
+  if (x) x.style.display = 'none';
 }
 function finishFile() {
   const cur = incoming;
@@ -328,11 +401,12 @@ function finishFile() {
   }
   const a = document.createElement('a');
   a.href = url;
-  a.download = cur.meta.name;
+  a.download = basename(cur.meta.name);
   a.className = 'dl';
   a.textContent = '⬇ Download';
   body.appendChild(a);
   scrollDown();
+  markDone(cur.el);
 }
 
 /* ---------- sending ---------- */
@@ -347,8 +421,72 @@ function sendText() {
 
 function enqueueFile(file) {
   if (!file) return;
+  if (!file._ldId) file._ldId = uid();
   sendQueue.push(file);
   pumpQueue();
+}
+
+/* Wait for the peer's verdict on a file-ask. Resolves 'ok', 'no', 'timeout'
+   or 'gone' (connection dropped mid-wait). */
+function waitForApproval(id, ms) {
+  return new Promise((res) => {
+    const to = setTimeout(() => { delete approvalWaiters[id]; res('timeout'); }, ms);
+    approvalWaiters[id] = (r) => { clearTimeout(to); delete approvalWaiters[id]; res(r); };
+  });
+}
+
+function sendFrame(o) {
+  if (dc && dc.readyState === 'open') {
+    try { dc.send(JSON.stringify(o)); } catch (e) { /* noop */ }
+  }
+}
+
+/* Cancel an outgoing transfer — the one on the wire or one still queued. */
+function cancelSend(id) {
+  if (activeSend && activeSend.id === id) {
+    activeSend.cancelled = true;
+    const w = approvalWaiters[id];
+    if (w) w('no'); // release a transfer stuck waiting for approval
+  } else {
+    const i = sendQueue.findIndex((f) => f._ldId === id);
+    if (i >= 0) { sendQueue.splice(i, 1); sysMsg('Removed from the send queue.'); }
+  }
+  sendFrame({ t: 'file-cancel', id });
+}
+
+/* Cancel an incoming transfer (v9 ask-flow only — legacy peers can't abort). */
+function cancelReceive(id) {
+  if (incoming && incoming.meta.id === id) {
+    const el = incoming.el;
+    incoming = null;
+    setCardNote(el, 'cancelled');
+    markDone(el);
+  }
+  sendFrame({ t: 'file-cancel', id });
+}
+
+/* The peer aborted a transfer (or withdrew a pending ask). */
+function onFileCancel(id) {
+  if (activeSend && activeSend.id === id) {
+    activeSend.cancelled = true; // the pump loop marks the card
+    const w = approvalWaiters[id];
+    if (w) w('no');
+    return;
+  }
+  if (incoming && incoming.meta.id === id) {
+    const el = incoming.el;
+    incoming = null;
+    setCardNote(el, 'cancelled by sender');
+    markDone(el);
+    return;
+  }
+  const p = pendingAsks[id];
+  if (p) {
+    delete pendingAsks[id];
+    const row = p.el.querySelector('.askrow');
+    if (row) row.remove();
+    setCardNote(p.el, 'withdrawn by sender');
+  }
 }
 
 async function pumpQueue() {
@@ -356,30 +494,208 @@ async function pumpQueue() {
   if (!dc || dc.readyState !== 'open') return;
   sending = true;
   const file = sendQueue.shift();
-  const id = uid();
-  const el = fileCard(true, file.name, file.size);
+  const id = file._ldId || uid();
+  const meta = {
+    t: 'file-meta', id,
+    name: file.name, size: file.size,
+    mime: file.type || 'application/octet-stream',
+  };
+  if (file._ldPath) meta.path = file._ldPath;
+  const el = fileCard(true, dispName(meta), file.size, id, meta.mime);
+  const xb = el.querySelector('.xbtn');
+  if (xb) xb.addEventListener('click', () => cancelSend(id));
+  const transfer = { id, cancelled: false };
+  activeSend = transfer;
   try {
-    dc.send(JSON.stringify({
-      t: 'file-meta', id,
-      name: file.name, size: file.size,
-      mime: file.type || 'application/octet-stream',
-    }));
+    if (peerV >= APP_V) {
+      // v9 approval flow: ask first, stream only on Accept
+      setCardNote(el, '⏳ waiting for approval…');
+      sendFrame(Object.assign({}, meta, { t: 'file-ask' }));
+      const verdict = await waitForApproval(id, 90000);
+      if (transfer.cancelled) {
+        setCardNote(el, 'cancelled');
+      } else if (verdict === 'ok') {
+        setCardNote(el, '');
+      } else {
+        setCardNote(el, verdict === 'no' ? 'declined' : 'no answer — not sent');
+        markDone(el);
+        activeSend = null; sending = false; pumpQueue();
+        return;
+      }
+      if (transfer.cancelled) { markDone(el); activeSend = null; sending = false; pumpQueue(); return; }
+    } else {
+      sendFrame(meta); // legacy peer: classic unannounced send
+    }
     const CHUNK = 16384;
-    let off = 0;
+    let off = 0, lastT = Date.now(), lastOff = 0;
     while (off < file.size) {
-      while (dc.bufferedAmount > 512 * 1024) await sleep(60);
+      if (transfer.cancelled) break;
+      while (dc.bufferedAmount > 512 * 1024) {
+        await sleep(60);
+        if (transfer.cancelled) break;
+      }
+      if (transfer.cancelled) break;
       const buf = await file.slice(off, off + CHUNK).arrayBuffer();
       dc.send(buf);
       off += buf.byteLength;
       setProg(el, off / file.size);
+      const now = Date.now();
+      if (now - lastT >= 500) {
+        setSpeed(el, (off - lastOff) / ((now - lastT) / 1000));
+        lastT = now; lastOff = off;
+      }
     }
-    dc.send(JSON.stringify({ t: 'file-end', id }));
-    setProg(el, 1);
+    if (transfer.cancelled) {
+      setCardNote(el, 'cancelled');
+    } else {
+      dc.send(JSON.stringify({ t: 'file-end', id }));
+    }
+    markDone(el);
   } catch (err) {
     el.querySelector('.fname').textContent += ' — failed';
+    markDone(el);
   }
+  activeSend = null;
   sending = false;
   pumpQueue();
+}
+
+/* ---------- incoming file approval (v9) ---------- */
+function onFileAsk(m) {
+  if (!m || !m.id || pendingAsks[m.id]) return;
+  if (incoming) { sendFrame({ t: 'file-no', id: m.id }); return; } // busy: don't clobber the active transfer
+  const d = document.createElement('div');
+  d.className = 'bubble theirs ask';
+  d.innerHTML =
+    '<div class="fbody"><div class="frow">' +
+    '<span class="fic">' + iconFor(m.mime) + '</span>' +
+    '<div class="finfo"><div class="fname">' + esc(dispName(m)) + '</div>' +
+    '<div class="fsize">' + fmtSize(m.size) + '</div></div></div>' +
+    '<div class="fnote">wants to send you this file</div>' +
+    '<div class="askrow"><button class="btn small okbtn">✓ Accept</button>' +
+    '<button class="btn small nobtn">✕ Decline</button></div></div>';
+  $('messages').appendChild(d);
+  scrollDown();
+  pendingAsks[m.id] = { meta: m, el: d };
+  const ok = d.querySelector('.okbtn');
+  const no = d.querySelector('.nobtn');
+  if (ok) ok.addEventListener('click', () => acceptAsk(m.id));
+  if (no) no.addEventListener('click', () => declineAsk(m.id));
+}
+
+function acceptAsk(id) {
+  const p = pendingAsks[id];
+  if (!p) return;
+  delete pendingAsks[id];
+  const m = p.meta;
+  if (p.el && p.el.remove) p.el.remove();
+  incoming = { meta: m, parts: [], got: 0, el: fileCard(false, dispName(m), m.size, m.id, m.mime) };
+  const xb = incoming.el.querySelector('.xbtn');
+  if (xb) xb.addEventListener('click', () => cancelReceive(m.id));
+  sendFrame({ t: 'file-ok', id });
+  scrollDown();
+}
+
+function declineAsk(id) {
+  const p = pendingAsks[id];
+  if (!p) return;
+  delete pendingAsks[id];
+  const row = p.el.querySelector('.askrow');
+  if (row) row.remove();
+  setCardNote(p.el, 'declined');
+  sendFrame({ t: 'file-no', id });
+}
+
+/* ---------- clipboard sync ---------- */
+async function sendClipboard() {
+  if (!dc || dc.readyState !== 'open') {
+    sysMsg('Connect first, then tap 📋 to share your clipboard.');
+    return;
+  }
+  const clip = navigator.clipboard;
+  if (!clip) {
+    alert("Clipboard access isn't available here.\n\nIt needs a secure (https) page and a browser that allows clipboard access.");
+    return;
+  }
+  try {
+    let text = '';
+    try { text = await clip.readText(); } catch (e) { /* denied or empty */ }
+    if (text && text.trim()) {
+      sendFrame({ t: 'clip', text, ts: Date.now() });
+      addText(true, text);
+      sysMsg('📋 Clipboard sent' + (peerV > 0 && peerV < APP_V ? ' — their app looks outdated, ask them to refresh the page if nothing arrives.' : ''));
+      return;
+    }
+    // no text — look for an image (e.g. a screenshot)
+    if (clip.read) {
+      const items = await clip.read();
+      for (const it of items) {
+        const imgType = (it.types || []).find((t) => t.indexOf('image/') === 0);
+        if (imgType) {
+          const blob = await it.getType(imgType);
+          const ext = (imgType.split('/')[1] || 'png').split('+')[0];
+          const f = new File([blob], 'clipboard-' + Date.now() + '.' + ext, { type: imgType });
+          enqueueFile(f);
+          sysMsg('📋 Clipboard image queued');
+          return;
+        }
+      }
+    }
+    sysMsg('Clipboard is empty — copy some text or an image first.');
+  } catch (err) {
+    alert("Couldn't read the clipboard.\n\nYour browser may need permission — allow clipboard access for this site and try again.");
+  }
+}
+
+/* ---------- folder send: walk a dropped / picked directory ---------- */
+async function filesFromEntry(entry, base) {
+  const out = [];
+  if (entry.isFile) {
+    const file = await new Promise((res, rej) => entry.file(res, rej));
+    out.push({ file, path: base ? base + '/' + file.name : file.name });
+  } else if (entry.isDirectory) {
+    const dirPath = base ? base + '/' + entry.name : entry.name;
+    const reader = entry.createReader();
+    for (;;) {
+      const batch = await new Promise((res, rej) => reader.readEntries(res, rej));
+      if (!batch.length) break;
+      for (const child of batch) {
+        const sub = await filesFromEntry(child, dirPath);
+        out.push.apply(out, sub);
+      }
+    }
+  }
+  return out;
+}
+
+function entryOf(item) {
+  if (!item) return null;
+  if (item.webkitGetAsEntry) return item.webkitGetAsEntry();
+  if (item.getAsEntry) return item.getAsEntry(); // newer Firefox
+  return null;
+}
+
+async function handleFolderDrop(items) {
+  const collected = [];
+  for (const it of items) {
+    let entry = null;
+    try { entry = entryOf(it); } catch (e) { /* noop */ }
+    if (!entry) continue;
+    try {
+      const found = await filesFromEntry(entry, '');
+      collected.push.apply(collected, found);
+    } catch (e) { /* skip unreadable entries */ }
+  }
+  if (!collected.length) {
+    sysMsg('Nothing sendable in that drop.');
+    return;
+  }
+  if (collected.length > 500) {
+    sysMsg('Big drop — sending the first 500 files.');
+    collected.length = 500;
+  }
+  collected.forEach(({ file, path }) => { file._ldPath = path; enqueueFile(file); });
+  sysMsg('Sending ' + collected.length + (collected.length === 1 ? ' file' : ' files') + '…');
 }
 
 /* ---------- tap-to-connect: identity & storage ---------- */
@@ -793,6 +1109,13 @@ $('fileInput').addEventListener('change', (e) => {
   Array.from(e.target.files).forEach(enqueueFile);
   e.target.value = '';
 });
+$('folderInput').addEventListener('change', (e) => {
+  const files = Array.from(e.target.files || []);
+  files.forEach((f) => { f._ldPath = f.webkitRelativePath || f.name; enqueueFile(f); });
+  if (files.length) sysMsg('Sending folder (' + files.length + ' files)…');
+  e.target.value = '';
+});
+$('btnClip').addEventListener('click', sendClipboard);
 document.addEventListener('paste', (e) => {
   if ($('view-chat').classList.contains('hidden')) return;
   const files = (e.clipboardData && e.clipboardData.files) || [];
@@ -840,7 +1163,14 @@ document.addEventListener('paste', (e) => {
       sysMsg('Not connected — connect first, then drop files here to send them.');
       return;
     }
-    const files = Array.from((e.dataTransfer && e.dataTransfer.files) || []);
+    const dt = e.dataTransfer;
+    const items = dt && dt.items ? Array.from(dt.items) : [];
+    // Folders (and files) via the FileSystem API — preserves folder structure
+    if (items.length && items.some((it) => entryOf(it))) {
+      handleFolderDrop(items);
+      return;
+    }
+    const files = Array.from((dt && dt.files) || []);
     if (!files.length) return;
     files.forEach(enqueueFile);
     sysMsg('Sending ' + files.length + (files.length === 1 ? ' file' : ' files') + '…');

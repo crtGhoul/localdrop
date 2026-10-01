@@ -61,6 +61,14 @@ LocalDrop is installable, so it feels like the real store app:
 - **Drag & drop:** on a computer, drag files straight onto the chat while
   connected — they send immediately. You can also use the 📎 button or paste
   images from the clipboard.
+- **Clipboard sync:** tap 📋 in the chat to shoot your clipboard (text, or an
+  image like a screenshot) to the other device.
+- **Folder send:** drag a whole folder onto the chat, or tap 📁 — every file
+  inside is sent with its folder structure shown.
+- **Approve incoming files:** the other side gets an Accept / Decline prompt
+  before a file starts transferring (both devices on the latest version).
+- **Cancel & speed:** transfers show live MB/s and can be cancelled mid-flight
+  with the ✕ on the file card.
 
 ## Tap-to-connect server
 

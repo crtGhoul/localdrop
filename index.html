@@ -65,7 +65,7 @@
         <p class="hint">No server yet? Deploy your own free one — see
           <b>Tap-to-connect server</b> in the README, then paste the URL here.
           Without a server you can still use Share / Receive codes below.</p>
-        <p class="hint">App version: <b id="appVersion">v8</b></p>
+        <p class="hint">App version: <b id="appVersion">v9</b></p>
       </details>
     </section>
 
@@ -106,7 +106,10 @@
 
   <!-- CHAT -->
   <main id="view-chat" class="view hidden">
-    <button class="back" data-go="home">⏻ disconnect</button>
+    <div class="chathead">
+      <button class="back" data-go="home">⏻ disconnect</button>
+      <div id="peerLabel" class="peerlabel">…</div>
+    </div>
     <div id="messages" class="messages"></div>
     <div id="dropOverlay" class="dropoverlay hidden">
       <div class="dropcard">
@@ -117,6 +120,8 @@
     </div>
     <div class="composer">
       <label class="attach" title="Send photo or file">📎<input type="file" id="fileInput" hidden multiple></label>
+      <label class="attach" title="Send a whole folder">📁<input type="file" id="folderInput" hidden webkitdirectory></label>
+      <button class="attachbtn" id="btnClip" title="Send clipboard">📋</button>
       <input id="textInput" type="text" placeholder="Message, link…" autocomplete="off" enterkeyhint="send">
       <button id="btnSend" class="btn primary">Send</button>
     </div>
