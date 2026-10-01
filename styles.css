@@ -278,6 +278,12 @@ details.settings summary { cursor: pointer; color: var(--mut); font-size: 14px; 
 details.settings .fld { margin-top: 10px; }
 details.settings .hint { margin-top: 10px; }
 
+/* tap-to-connect how-to */
+details.howto { margin: 2px 0 10px; }
+details.howto summary { cursor: pointer; color: var(--acc); font-size: 13.5px; }
+details.howto ol { margin: 10px 0 4px; padding-left: 22px; font-size: 14px; line-height: 1.65; color: var(--txt); }
+details.howto .hint { margin-top: 8px; }
+
 /* incoming call modal */
 .modal {
   position: fixed; inset: 0; z-index: 50;

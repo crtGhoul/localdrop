@@ -700,6 +700,9 @@ async function handleFolderDrop(items) {
 
 /* ---------- tap-to-connect: identity & storage ---------- */
 const LS_ID = 'ld_id', LS_NAME = 'ld_name', LS_SERVER = 'ld_server', LS_KNOWN = 'ld_known';
+/* Built-in free matchmaker (Render). Used unless the user sets their own server
+   in settings — or explicitly clears the field to disable tap-to-connect. */
+const DEFAULT_SERVER = 'wss://localdrop-l8ly.onrender.com';
 
 function storeGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
 function storeSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* noop */ } }
@@ -794,7 +797,7 @@ function avatarLetter(name) {
 
 /* ---------- tap-to-connect: matchmaker socket ---------- */
 let myId = null, myName = '';
-let sig = null, sigGen = 0, sigTimer = null, hbTimer = null;
+let sig = null, sigGen = 0, sigTimer = null, sigWakeTimer = null, hbTimer = null;
 let sigBackoff = 2000, sigWanted = false;
 let roster = [];
 let outgoingCall = null;   // {id, name} — we rang them
@@ -818,11 +821,14 @@ function showSigNotice(t) {
 }
 
 function sigConnect() {
-  const url = normalizeServerUrl(storeGet(LS_SERVER) || '');
+  // Unset -> built-in free server. Explicitly cleared ('') -> tap-to-connect off.
+  const stored = storeGet(LS_SERVER);
+  const url = normalizeServerUrl(stored === null ? DEFAULT_SERVER : stored);
   sigWanted = !!url;
   sigGen += 1;
   const gen = sigGen;
   clearTimeout(sigTimer);
+  clearTimeout(sigWakeTimer);
   clearInterval(hbTimer);
   try { if (sig) sig.close(); } catch (e) { /* noop */ }
   sig = null;
@@ -835,11 +841,19 @@ function sigConnect() {
   }
   setSigDot('off');
   showSigNotice('Connecting to matchmaker…');
+  // Render's free tier sleeps when idle — first connect of the day can take
+  // ~30-60s while it wakes. Say so instead of looking stuck.
+  sigWakeTimer = setTimeout(() => {
+    if (gen === sigGen && sig && sig.readyState === 0) {
+      showSigNotice('Waking up the free server — it sleeps when idle. First connect can take ~30–60 seconds…');
+    }
+  }, 8000);
   let ws;
   try { ws = new WebSocket(url); } catch (e) { retrySig(gen); return; }
   sig = ws;
   ws.onopen = () => {
     if (gen !== sigGen) { try { ws.close(); } catch (e) { /* noop */ } return; }
+    clearTimeout(sigWakeTimer);
     sigBackoff = 2000;
     setSigDot('on');
     showSigNotice('');
@@ -851,6 +865,7 @@ function sigConnect() {
   ws.onerror = () => { /* onclose follows with the retry */ };
   ws.onclose = () => {
     if (gen !== sigGen) return;
+    clearTimeout(sigWakeTimer);
     clearInterval(hbTimer);
     setSigDot('bad');
     showSigNotice("Couldn't reach the matchmaker — you can still pair with a code.");
@@ -887,7 +902,7 @@ function renderRoster() {
   const list = $('rosterList');
   list.innerHTML = '';
   if (!sigWanted) {
-    list.innerHTML = '<p class="empty">Add a matchmaker server in settings to see nearby devices — or use Share / Receive below.</p>';
+    list.innerHTML = '<p class="empty">Tap-to-connect is off (server cleared in settings) — use Share / Receive codes below.</p>';
     return;
   }
   const devs = sortRoster(roster);
@@ -1075,6 +1090,7 @@ function initTapToConnect() {
   });
   const srvInp = $('serverInput');
   srvInp.value = storeGet(LS_SERVER) || '';
+  srvInp.placeholder = DEFAULT_SERVER + ' (default)';
   srvInp.addEventListener('change', () => {
     const u = normalizeServerUrl(srvInp.value);
     srvInp.value = u;

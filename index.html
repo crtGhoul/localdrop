@@ -51,6 +51,15 @@
         <span id="sigDot" class="sigdot" title="matchmaker status"></span>
       </div>
       <h3>Nearby &amp; ready</h3>
+      <details class="howto">
+        <summary>How does tap-to-connect work?</summary>
+        <ol>
+          <li>Open this page on <b>both</b> devices (same Wi-Fi works best).</li>
+          <li>Each device shows up in the other's <b>Nearby &amp; ready</b> list — tap one to call it.</li>
+          <li>Accept on the other device. Done — send anything.</li>
+        </ol>
+        <p class="hint">A free matchmaker server just introduces your devices — your photos and files then fly <b>directly</b> between them (WebRTC), never through the server. First visit of the day can take ~30–60s: the free server sleeps when idle. No devices showing? You can always pair with a Share / Receive code instead.</p>
+      </details>
       <p id="sigNotice" class="hint hidden"></p>
       <div id="rosterList" class="devlist"></div>
       <div id="callState" class="hidden"></div>
@@ -60,12 +69,13 @@
         <summary>⚙️ Matchmaker server</summary>
         <label class="fld"><span>Server URL</span>
           <input id="serverInput" type="url" inputmode="url" autocomplete="off"
-                 placeholder="wss://your-server.onrender.com">
+                 placeholder="wss://localdrop-l8ly.onrender.com (default)">
         </label>
-        <p class="hint">No server yet? Deploy your own free one — see
-          <b>Tap-to-connect server</b> in the README, then paste the URL here.
-          Without a server you can still use Share / Receive codes below.</p>
-        <p class="hint">App version: <b id="appVersion">v9</b></p>
+        <p class="hint">Blank = use the built-in free server. Paste your own
+          wss:// URL to use a self-hosted one instead (see
+          <b>Tap-to-connect server</b> in the README) — or clear it to turn
+          tap-to-connect off. Without a server you can still use Share / Receive codes below.</p>
+        <p class="hint">App version: <b id="appVersion">v10</b></p>
       </details>
     </section>
 

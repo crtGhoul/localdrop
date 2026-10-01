@@ -72,9 +72,13 @@ LocalDrop is installable, so it feels like the real store app:
 
 ## Tap-to-connect server
 
-Tired of copying codes? Run the tiny **matchmaker server** in `server/` and
-the app shows a **Nearby & ready** list — tap a device to connect. Devices
-you've connected to are remembered under **Known devices**.
+Tired of copying codes? The app ships with a built-in free **matchmaker
+server** (`wss://localdrop-l8ly.onrender.com`) — just open the page on both
+devices and they show up under **Nearby & ready**. Tap a device to connect.
+Devices you've connected to are remembered under **Known devices**. (You can
+swap in your own server under ⚙️ Matchmaker server in settings.)
+
+Want your own? Run the tiny matchmaker in `server/`:
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/crtGhoul/localdrop)
 
