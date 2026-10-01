@@ -799,6 +799,54 @@ document.addEventListener('paste', (e) => {
   Array.from(files).forEach(enqueueFile);
 });
 
+/* ---------- drag & drop send (desktop: drag files onto the chat) ---------- */
+(function initDropSend() {
+  const chatView = $('view-chat');
+  const overlay = $('dropOverlay');
+  let dragDepth = 0;
+
+  const chatVisible = () => !chatView.classList.contains('hidden');
+  const live = () => dc && dc.readyState === 'open';
+  const hasFiles = (e) =>
+    !!(e.dataTransfer && e.dataTransfer.types &&
+       Array.prototype.indexOf.call(e.dataTransfer.types, 'Files') !== -1);
+
+  // Never let a dropped file navigate the browser away — even outside chat.
+  window.addEventListener('dragover', (e) => e.preventDefault());
+  window.addEventListener('drop', (e) => {
+    if (!chatVisible()) e.preventDefault();
+  });
+
+  chatView.addEventListener('dragenter', (e) => {
+    if (!chatVisible() || !hasFiles(e)) return;
+    e.preventDefault();
+    dragDepth++;
+    if (live()) overlay.classList.remove('hidden');
+  });
+  chatView.addEventListener('dragover', (e) => {
+    if (chatVisible()) e.preventDefault(); // must cancel to allow the drop
+  });
+  chatView.addEventListener('dragleave', (e) => {
+    if (!chatVisible() || !hasFiles(e)) return;
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (dragDepth === 0) overlay.classList.add('hidden');
+  });
+  chatView.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dragDepth = 0;
+    overlay.classList.add('hidden');
+    if (!chatVisible()) return;
+    if (!live()) {
+      sysMsg('Not connected — connect first, then drop files here to send them.');
+      return;
+    }
+    const files = Array.from((e.dataTransfer && e.dataTransfer.files) || []);
+    if (!files.length) return;
+    files.forEach(enqueueFile);
+    sysMsg('Sending ' + files.length + (files.length === 1 ? ' file' : ' files') + '…');
+  });
+})();
+
 /* ---------- PWA: service worker + install prompt ---------- */
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {

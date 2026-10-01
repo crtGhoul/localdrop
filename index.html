@@ -65,7 +65,7 @@
         <p class="hint">No server yet? Deploy your own free one — see
           <b>Tap-to-connect server</b> in the README, then paste the URL here.
           Without a server you can still use Share / Receive codes below.</p>
-        <p class="hint">App version: <b id="appVersion">v7</b></p>
+        <p class="hint">App version: <b id="appVersion">v8</b></p>
       </details>
     </section>
 
@@ -108,6 +108,13 @@
   <main id="view-chat" class="view hidden">
     <button class="back" data-go="home">⏻ disconnect</button>
     <div id="messages" class="messages"></div>
+    <div id="dropOverlay" class="dropoverlay hidden">
+      <div class="dropcard">
+        <div class="droplogo">📥</div>
+        <div class="droptitle">Drop files to send</div>
+        <div class="dropsub">they go straight to the other device</div>
+      </div>
+    </div>
     <div class="composer">
       <label class="attach" title="Send photo or file">📎<input type="file" id="fileInput" hidden multiple></label>
       <input id="textInput" type="text" placeholder="Message, link…" autocomplete="off" enterkeyhint="send">

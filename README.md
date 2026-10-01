@@ -58,6 +58,9 @@ LocalDrop is installable, so it feels like the real store app:
   the actual file/message transfer then goes direct between devices.
 - Files are streamed in 16 KB chunks over an ordered, reliable data channel with
   backpressure, so large files are fine.
+- **Drag & drop:** on a computer, drag files straight onto the chat while
+  connected — they send immediately. You can also use the 📎 button or paste
+  images from the clipboard.
 
 ## Tap-to-connect server
 
