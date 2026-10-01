@@ -284,6 +284,10 @@ details.howto summary { cursor: pointer; color: var(--acc); font-size: 13.5px; }
 details.howto ol { margin: 10px 0 4px; padding-left: 22px; font-size: 14px; line-height: 1.65; color: var(--txt); }
 details.howto .hint { margin-top: 8px; }
 
+/* server link line */
+.serverline { margin: 0 0 6px; }
+.serverline a { color: var(--acc); text-decoration: underline; text-underline-offset: 2px; }
+
 /* incoming call modal */
 .modal {
   position: fixed; inset: 0; z-index: 50;

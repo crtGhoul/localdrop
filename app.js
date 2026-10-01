@@ -820,11 +820,27 @@ function showSigNotice(t) {
   el.classList.toggle('hidden', !t);
 }
 
+/* Keep the visible server link in sync with the matchmaker in use.
+   wss:// -> https:// so it opens in a browser tab. */
+function renderServerLink(url) {
+  const a = $('serverLink');
+  if (!a) return;
+  const line = a.closest ? a.closest('.serverline') : null;
+  if (!url) {
+    if (line) line.classList.add('hidden');
+    return;
+  }
+  if (line) line.classList.remove('hidden');
+  a.href = String(url).replace(/^wss:\/\//i, 'https://').replace(/^ws:\/\//i, 'http://');
+  a.textContent = String(url).replace(/^wss?:\/\//i, '').replace(/\/$/, '');
+}
+
 function sigConnect() {
   // Unset -> built-in free server. Explicitly cleared ('') -> tap-to-connect off.
   const stored = storeGet(LS_SERVER);
   const url = normalizeServerUrl(stored === null ? DEFAULT_SERVER : stored);
   sigWanted = !!url;
+  renderServerLink(url);
   sigGen += 1;
   const gen = sigGen;
   clearTimeout(sigTimer);
