@@ -287,6 +287,7 @@ details.howto .hint { margin-top: 8px; }
 /* server link line */
 .serverline { margin: 0 0 6px; }
 .serverline a { color: var(--acc); text-decoration: underline; text-underline-offset: 2px; }
+details.settings a.deploylink { color: var(--acc); font-weight: 600; }
 
 /* update-available toast */
 #updateToast {
