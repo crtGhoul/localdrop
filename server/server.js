@@ -23,6 +23,9 @@ const TIMEOUT_MS = 75 * 1000;   // drop clients silent longer than this
 const SWEEP_MS = 30 * 1000;
 const MAX_NAME = 32;
 const MAX_CLIENTS = 500;
+// Bump on every behavior change — visible at /health so you can confirm
+// which code Render is actually running.
+const SERVER_VERSION = '2026-10-02-ipv6';
 
 /* ---------- pure helpers (unit-tested) ---------- */
 
@@ -128,7 +131,7 @@ function startServer(port) {
   const httpServer = http.createServer((req, res) => {
     if (req.url === '/health') {
       res.writeHead(200, { 'content-type': 'application/json' });
-      res.end(JSON.stringify({ ok: true, clients: clients.size }));
+      res.end(JSON.stringify({ ok: true, clients: clients.size, version: SERVER_VERSION }));
     } else {
       res.writeHead(200, { 'content-type': 'text/plain' });
       res.end('LocalDrop signaling server — connect over WebSocket.');
