@@ -2,15 +2,21 @@
  *
  * What it does:
  *  - keeps a registry of online devices (id, name, public IP, last heartbeat)
- *  - pushes each client a roster of the devices on its OWN network
- *    (same public IP) — nobody sees devices on other networks, and
- *    private-mode devices are invisible to everyone
+ *  - pushes each client a roster of the other online devices, marking
+ *    same-network ones as "nearby" (private-mode devices are invisible
+ *    to everyone)
  *  - forwards WebRTC handshake envelopes (offer / answer / ICE / declined)
  *    between two devices so they can connect without manual codes
  *
  * What it NEVER sees: message text, file bytes, or anything sent over the
  * WebRTC data channel. That traffic goes directly between the two devices,
  * end-to-end encrypted (DTLS). This server only routes the introduction.
+ *
+ * Note: the roster is intentionally NOT filtered by network. IP-based
+ * "same network" matching proved too fragile in practice (IPv6 per-device
+ * addresses, mixed v4/v6 homes, carrier NAT pools, proxies) and hid
+ * people's own devices from each other. Privacy is handled explicitly
+ * instead: 🙈 Private mode keeps you out of everyone's roster.
  */
 'use strict';
 
@@ -66,16 +72,15 @@ function isNearby(aIp, bIp) {
   return false;
 }
 
-/* Roster for one recipient: ONLY devices on the same network (same public
-   IP) that haven't enabled private mode. Strangers on other networks are
-   invisible to each other. `registry` maps id -> {id, name, ip, priv, lastSeen}. */
+/* Roster for one recipient: all other online devices that haven't enabled
+   private mode, with a per-recipient `nearby` flag (same network).
+   `registry` maps id -> {id, name, ip, priv, lastSeen}. */
 function buildRoster(registry, selfId, selfIp) {
   const out = [];
   for (const [id, d] of registry) {
     if (id === selfId) continue;
-    if (d.priv) continue;                 // private mode: invisible to everyone
-    if (!isNearby(d.ip, selfIp)) continue; // different network: invisible
-    out.push({ id, name: d.name, nearby: true, lastSeen: d.lastSeen });
+    if (d.priv) continue; // private mode: invisible to everyone
+    out.push({ id, name: d.name, nearby: isNearby(d.ip, selfIp), lastSeen: d.lastSeen });
   }
   return out;
 }
