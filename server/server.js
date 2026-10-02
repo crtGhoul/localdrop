@@ -40,10 +40,27 @@ function clientIp(req, socket) {
   return normalizeIp(socket && socket.remoteAddress);
 }
 
-/* A device is "nearby" another when both arrive from the same public IP
-   (i.e. behind the same home/office router). */
+/* A device is "nearby" another when both arrive from the same network:
+ *  - IPv4: same public IP (i.e. behind the same home/office router)
+ *  - IPv6: same /64 prefix — with IPv6 there's no NAT, so each device has
+ *    its own global address, but devices on one LAN share the /64. */
+function expandIpv6(ip) {
+  const parts = String(ip).split('::');
+  const head = parts[0] ? parts[0].split(':') : [];
+  const tail = parts[1] ? parts[1].split(':') : [];
+  const zeros = new Array(Math.max(0, 8 - head.length - tail.length)).fill('0');
+  return head.concat(zeros, tail).map((h) => h.padStart(4, '0'));
+}
 function isNearby(aIp, bIp) {
-  return !!aIp && aIp === bIp;
+  const a = normalizeIp(aIp), b = normalizeIp(bIp);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  if (a.indexOf(':') !== -1 && b.indexOf(':') !== -1) {
+    const pa = expandIpv6(a).slice(0, 4).join(':');
+    const pb = expandIpv6(b).slice(0, 4).join(':');
+    return pa === pb;
+  }
+  return false;
 }
 
 /* Roster for one recipient: ONLY devices on the same network (same public
