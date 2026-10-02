@@ -21,6 +21,7 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📡</text></svg>">
 <link rel="stylesheet" href="styles.css">
 <script src="qrcode.min.js"></script>
+<script src="zip.js"></script>
 </head>
 <body>
 <div class="app">
@@ -84,7 +85,7 @@
           (takes ~2 minutes), then paste its wss:// URL above — or clear the
           field to turn tap-to-connect off. Without a server you can still use
           Share / Receive codes below.</p>
-        <p class="hint">App version: <b id="appVersion">v14</b></p>
+        <p class="hint">App version: <b id="appVersion">v15</b></p>
       </details>
     </section>
 
@@ -127,7 +128,13 @@
   <main id="view-chat" class="view hidden">
     <div class="chathead">
       <button class="back" data-go="home">⏻ disconnect</button>
-      <div id="peerLabel" class="peerlabel">…</div>
+      <div class="headright">
+        <div id="peerLabel" class="peerlabel">…</div>
+        <div id="fileActions" class="fileactions hidden">
+          <button id="btnDlAll" class="btn small" title="Download all received files as one ZIP">⬇ All</button>
+          <button id="btnShareAll" class="btn small hidden" title="Share received files with other apps">📤</button>
+        </div>
+      </div>
     </div>
     <div id="messages" class="messages"></div>
     <div id="dropOverlay" class="dropoverlay hidden">

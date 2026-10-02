@@ -166,8 +166,11 @@ textarea:focus, .composer input:focus { outline: none; border-color: var(--acc);
   font-size: 12.5px; color: var(--mut);
   background: var(--card); border: 1px solid var(--line);
   padding: 6px 12px; border-radius: 999px;
-  max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+.headright { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex: 1; min-width: 0; }
+.fileactions { display: flex; gap: 6px; flex: none; }
+.fileactions .btn { white-space: nowrap; }
 
 /* message entrance */
 @keyframes msgin { from { opacity: 0; transform: translateY(6px); } }

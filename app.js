@@ -127,6 +127,7 @@ function teardown() {
   dc = null; pc = null; incoming = null;
   clearTimeout(connectTimer);
   sendQueue.length = 0; sending = false;
+  receivedFiles.length = 0; updateFileActions();
   activeSend = null; peerV = 0;
   Object.keys(approvalWaiters).forEach((id) => { try { approvalWaiters[id]('gone'); } catch (e) {} delete approvalWaiters[id]; });
   Object.keys(pendingAsks).forEach((id) => delete pendingAsks[id]);
@@ -409,6 +410,78 @@ function finishFile() {
   body.appendChild(a);
   scrollDown();
   markDone(cur.el);
+  // track for Download-all / Share
+  receivedFiles.push({ name: basename(cur.meta.name), path: dispName(cur.meta), blob });
+  updateFileActions();
+}
+
+/* ---------- download-all (ZIP) + share ---------- */
+const receivedFiles = []; // [{name, path, blob}] — completed incoming files this session
+
+function updateFileActions() {
+  const n = receivedFiles.length;
+  const wrap = $('fileActions');
+  const dl = $('btnDlAll');
+  const sh = $('btnShareAll');
+  if (!wrap || !dl || !sh) return;
+  const canShare = !!(navigator.share);
+  dl.classList.toggle('hidden', n < 2);
+  sh.classList.toggle('hidden', !(canShare && n >= 1));
+  wrap.classList.toggle('hidden', n < 2 && !(canShare && n >= 1));
+  dl.textContent = '⬇ All (' + n + ')';
+}
+
+function uniqueZipPath(p, used) {
+  if (!used.has(p)) { used.add(p); return p; }
+  const i = p.lastIndexOf('.');
+  const base = i > 0 ? p.slice(0, i) : p;
+  const ext = i > 0 ? p.slice(i) : '';
+  let k = 2, q;
+  do { q = base + ' (' + (k++) + ')' + ext; } while (used.has(q));
+  used.add(q);
+  return q;
+}
+
+async function downloadAll() {
+  const btn = $('btnDlAll');
+  if (!receivedFiles.length || !btn || btn.disabled) return;
+  btn.disabled = true;
+  const orig = btn.textContent;
+  btn.textContent = 'Zipping…';
+  try {
+    if (typeof ZipWriter === 'undefined') throw new Error('zip unavailable');
+    const used = new Set();
+    const files = [];
+    for (const f of receivedFiles) {
+      const buf = new Uint8Array(await f.blob.arrayBuffer());
+      files.push({ path: uniqueZipPath(ZipWriter.sanitizePath(f.path || f.name), used), data: buf });
+    }
+    const bytes = ZipWriter.zipStore(files);
+    const url = URL.createObjectURL(new Blob([bytes], { type: 'application/zip' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'localdrop-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.zip';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch (e) {
+    btn.textContent = 'Failed — try again';
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+  btn.disabled = false;
+  btn.textContent = orig;
+}
+
+async function shareAll() {
+  if (!receivedFiles.length || !navigator.share) return;
+  try {
+    const files = receivedFiles.map((f) =>
+      new File([f.blob], f.name, { type: f.blob.type || 'application/octet-stream' }));
+    const data = { files, title: 'LocalDrop files' };
+    if (navigator.canShare && !navigator.canShare(data)) return;
+    await navigator.share(data);
+  } catch (e) { /* user cancelled or share failed — ignore */ }
 }
 
 /* ---------- sending ---------- */
@@ -1266,6 +1339,8 @@ $('folderInput').addEventListener('change', (e) => {
   e.target.value = '';
 });
 $('btnClip').addEventListener('click', sendClipboard);
+$('btnDlAll').addEventListener('click', downloadAll);
+$('btnShareAll').addEventListener('click', shareAll);
 document.addEventListener('paste', (e) => {
   if ($('view-chat').classList.contains('hidden')) return;
   const files = (e.clipboardData && e.clipboardData.files) || [];

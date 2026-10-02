@@ -69,6 +69,10 @@ LocalDrop is installable, so it feels like the real store app:
   before a file starts transferring (both devices on the latest version).
 - **Cancel & speed:** transfers show live MB/s and can be cancelled mid-flight
   with the ✕ on the file card.
+- **Download all & share:** when you've received 2+ files, a **⬇ All** button
+  in the chat header downloads everything at once as a single ZIP (folder
+  structure preserved, no extra libraries). The **📤** button hands the files
+  to your phone's share sheet instead — AirDrop, WhatsApp, whatever you use.
 
 ## Tap-to-connect server
 
