@@ -2,8 +2,9 @@
  *
  * What it does:
  *  - keeps a registry of online devices (id, name, public IP, last heartbeat)
- *  - pushes each client a roster of who's online, marking devices on the
- *    same public IP as "nearby"
+ *  - pushes each client a roster of the devices on its OWN network
+ *    (same public IP) — nobody sees devices on other networks, and
+ *    private-mode devices are invisible to everyone
  *  - forwards WebRTC handshake envelopes (offer / answer / ICE / declined)
  *    between two devices so they can connect without manual codes
  *
@@ -45,13 +46,16 @@ function isNearby(aIp, bIp) {
   return !!aIp && aIp === bIp;
 }
 
-/* Roster for one recipient: everyone except self, with a per-recipient
-   `nearby` flag. `registry` maps id -> {id, name, ip, lastSeen}. */
+/* Roster for one recipient: ONLY devices on the same network (same public
+   IP) that haven't enabled private mode. Strangers on other networks are
+   invisible to each other. `registry` maps id -> {id, name, ip, priv, lastSeen}. */
 function buildRoster(registry, selfId, selfIp) {
   const out = [];
   for (const [id, d] of registry) {
     if (id === selfId) continue;
-    out.push({ id, name: d.name, nearby: isNearby(d.ip, selfIp), lastSeen: d.lastSeen });
+    if (d.priv) continue;                 // private mode: invisible to everyone
+    if (!isNearby(d.ip, selfIp)) continue; // different network: invisible
+    out.push({ id, name: d.name, nearby: true, lastSeen: d.lastSeen });
   }
   return out;
 }
@@ -132,7 +136,8 @@ function startServer(port) {
         }
         myId = msg.id;
         const name = String(msg.name || 'Unknown device').slice(0, MAX_NAME) || 'Unknown device';
-        clients.set(myId, { id: myId, name, ip, ws, lastSeen: Date.now() });
+        const priv = msg.private === true;
+        clients.set(myId, { id: myId, name, ip, ws, priv, lastSeen: Date.now() });
         ws.send(JSON.stringify({ t: 'registered', id: myId }));
         broadcastRoster();
       } else if (msg.t === 'heartbeat') {
