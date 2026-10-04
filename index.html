@@ -27,7 +27,7 @@
 <div class="app">
   <header>
     <div class="logo">📡 LocalDrop</div>
-    <div id="status" class="status idle"><span class="dot"></span><span id="statusText">not connected</span></div>
+    <div id="status" class="status idle" role="status" aria-live="polite"><span class="dot"></span><span id="statusText">not connected</span></div>
   </header>
 
   <!-- HOME -->
@@ -85,7 +85,7 @@
           (takes ~2 minutes), then paste its wss:// URL above — or clear the
           field to turn tap-to-connect off. Without a server you can still use
           Share / Receive codes below.</p>
-        <p class="hint">App version: <b id="appVersion">v15</b></p>
+        <p class="hint">App version: <b id="appVersion">v16</b></p>
       </details>
     </section>
 
@@ -145,9 +145,9 @@
       </div>
     </div>
     <div class="composer">
-      <label class="attach" title="Send photo or file">📎<input type="file" id="fileInput" hidden multiple></label>
-      <label class="attach" title="Send a whole folder">📁<input type="file" id="folderInput" hidden webkitdirectory></label>
-      <button class="attachbtn" id="btnClip" title="Send clipboard">📋</button>
+      <label class="attach" title="Send photo or file" aria-label="Send photo or file">📎<input type="file" id="fileInput" hidden multiple></label>
+      <label class="attach" title="Send a whole folder" aria-label="Send a whole folder">📁<input type="file" id="folderInput" hidden webkitdirectory></label>
+      <button class="attachbtn" id="btnClip" title="Send clipboard" aria-label="Send clipboard">📋</button>
       <input id="textInput" type="text" placeholder="Message, link…" autocomplete="off" enterkeyhint="send">
       <button id="btnSend" class="btn primary">Send</button>
     </div>

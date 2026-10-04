@@ -122,8 +122,17 @@ function setStatus(state, text) {
 }
 
 function teardown() {
-  try { if (dc) dc.close(); } catch (e) { /* noop */ }
-  try { if (pc) pc.close(); } catch (e) { /* noop */ }
+  if (dc) {
+    dc.onopen = null; dc.onmessage = null; dc.onclose = null;
+    try { dc.close(); } catch (e) { /* noop */ }
+  }
+  if (pc) {
+    pc.onconnectionstatechange = null;
+    pc.oniceconnectionstatechange = null;
+    pc.ondatachannel = null;
+    pc.onicecandidate = null;
+    try { pc.close(); } catch (e) { /* noop */ }
+  }
   dc = null; pc = null; incoming = null;
   clearTimeout(connectTimer);
   sendQueue.length = 0; sending = false;
@@ -149,9 +158,15 @@ function newPC() {
     if (!pc) return;
     const s = pc.connectionState;
     if (s === 'connected') setStatus('ok', 'connected');
-    else if (s === 'failed') setStatus('bad', viaSignal ? 'connection failed' : 'connection failed — try fresh codes');
+    else if (s === 'failed') endCallAttempt(viaSignal ? 'connection failed' : 'connection failed — try fresh codes');
     else if (s === 'disconnected' || s === 'closed') setStatus('bad', 'disconnected');
     else setStatus('idle', 'connecting…');
+  };
+  pc.oniceconnectionstatechange = () => {
+    if (!pc) return;
+    if (pc.iceConnectionState === 'failed') {
+      endCallAttempt(viaSignal ? 'connection failed' : 'connection failed — try fresh codes');
+    }
   };
   pc.ondatachannel = (e) => { dc = e.channel; wireDC(); };
 }
@@ -242,6 +257,7 @@ $('btnMakeReply').addEventListener('click', async () => {
     $('joinReply').value = encodeSDP(pc.localDescription);
     $('replyWrap').classList.remove('hidden');
     setStatus('idle', 'waiting for host…');
+    watchConnect(60000);
   } catch (e) {
     setStatus('bad', 'bad code');
     alert("That code didn't work — double-check it and try again.");
@@ -301,7 +317,16 @@ function onData(e) {
   } else if (incoming) {
     incoming.parts.push(e.data);
     incoming.got += e.data.byteLength;
-    setProg(incoming.el, incoming.got / incoming.meta.size);
+    if (incoming.got > (incoming.meta.size || 0) + 1048576) {
+      const el = incoming.el;
+      const id = incoming.meta && incoming.meta.id;
+      incoming = null;
+      setCardNote(el, 'failed — size limit exceeded');
+      markDone(el);
+      if (id) sendFrame({ t: 'file-cancel', id });
+      return;
+    }
+    setProg(incoming.el, incoming.got / (incoming.meta.size || 1));
   }
 }
 
@@ -328,7 +353,8 @@ function addText(mine, text) {
   scrollDown();
 }
 function basename(p) {
-  return String(p || '').split('/').pop();
+  const clean = String(p || '').replace(/\\/g, '/').split('/').filter(Boolean).pop();
+  return (clean && clean !== '.' && clean !== '..') ? clean : 'file';
 }
 function dispName(m) {
   return (m && (m.path || m.name)) || 'file';
@@ -355,7 +381,7 @@ function fileCard(mine, name, size, id, mime) {
     '<span class="fic">' + iconFor(mime) + '</span>' +
     '<div class="finfo"><div class="fname">' + esc(name) + '</div>' +
     '<div class="fsize">' + fmtSize(size) + '</div></div>' +
-    (id ? '<button class="xbtn" title="Cancel transfer">✕</button>' : '') +
+    (id ? '<button class="xbtn" title="Cancel transfer" aria-label="Cancel transfer">✕</button>' : '') +
     '</div>' +
     '<div class="fnote"></div>' +
     '<div class="track"><div class="bar busy"></div></div>' +
@@ -390,6 +416,12 @@ function markDone(el) {
 function finishFile() {
   const cur = incoming;
   incoming = null;
+  if (!cur) return;
+  if (cur.got < cur.meta.size) {
+    setCardNote(cur.el, 'incomplete file received');
+    markDone(cur.el);
+    return;
+  }
   const blob = new Blob(cur.parts, { type: cur.meta.mime });
   const url = URL.createObjectURL(blob);
   setProg(cur.el, 1);
@@ -638,6 +670,10 @@ async function pumpQueue() {
 /* ---------- incoming file approval (v9) ---------- */
 function onFileAsk(m) {
   if (!m || !m.id || pendingAsks[m.id]) return;
+  if (typeof m.size !== 'number' || m.size < 0 || !Number.isFinite(m.size)) {
+    sendFrame({ t: 'file-no', id: m.id });
+    return;
+  }
   if (incoming) { sendFrame({ t: 'file-no', id: m.id }); return; } // busy: don't clobber the active transfer
   const d = document.createElement('div');
   d.className = 'bubble theirs ask';
@@ -878,6 +914,9 @@ function watchForUpdates() {
   if (!sw || !sw.getRegistration) return;
   navigator.serviceWorker.getRegistration().then((reg) => {
     if (!reg) return;
+    if (reg.waiting && navigator.serviceWorker.controller) {
+      showUpdateToast();
+    }
     const check = () => { try { const p = reg.update(); if (p && p.catch) p.catch(() => {}); } catch (e) { /* noop */ } };
     check(); // ask for a fresh sw.js now, not whenever the browser feels like it
     reg.addEventListener('updatefound', () => {
@@ -1006,6 +1045,15 @@ function sigConnect() {
     clearInterval(hbTimer);
     setSigDot('bad');
     showSigNotice("Couldn't reach the matchmaker — you can still pair with a code.");
+    if (outgoingCall) {
+      endCallAttempt("matchmaker disconnected");
+    }
+    if (incomingOffer) {
+      incomingOffer = null;
+      $('callModal').classList.add('hidden');
+      stopRing();
+      setStatus('idle', 'not connected');
+    }
     roster = [];
     renderRoster();
     renderKnown();
@@ -1031,6 +1079,9 @@ function handleSigMsg(raw) {
     onRemoteSignal(m.from, m.fromName || 'Unknown device', m.payload);
   } else if (m.t === 'error' && m.msg) {
     showSigNotice('Matchmaker: ' + m.msg);
+    if (outgoingCall) {
+      endCallAttempt(m.msg === 'device is offline' ? 'device is offline' : 'connection failed');
+    }
   }
 }
 
@@ -1267,12 +1318,24 @@ function cancelCall() {
 }
 
 function endCallAttempt(msg) {
+  clearTimeout(connectTimer);
+  connectTimer = null;
   outgoingCall = null;
   hideRinging();
-  setStatus('bad', msg);
-  try { if (pc) pc.close(); } catch (e) { /* noop */ }
+  if (pc) {
+    pc.onconnectionstatechange = null;
+    pc.oniceconnectionstatechange = null;
+    pc.ondatachannel = null;
+    pc.onicecandidate = null;
+    try { pc.close(); } catch (e) { /* noop */ }
+  }
+  if (dc) {
+    dc.onopen = null; dc.onmessage = null; dc.onclose = null;
+    try { dc.close(); } catch (e) { /* noop */ }
+  }
   pc = null; dc = null;
   viaSignal = false; peerId = null; peerName = '';
+  setStatus('bad', msg);
 }
 
 /* ---------- tap-to-connect: wiring ---------- */

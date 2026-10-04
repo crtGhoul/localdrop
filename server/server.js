@@ -44,9 +44,10 @@ function normalizeIp(ip) {
 /* Best-effort client IP: first entry of x-forwarded-for (set by proxies
    like Render), else the raw socket address. */
 function clientIp(req, socket) {
-  const fwd = req.headers && req.headers['x-forwarded-for'];
+  const fwd = req && req.headers && req.headers['x-forwarded-for'];
   if (fwd) return normalizeIp(String(fwd).split(',')[0].trim());
-  return normalizeIp(socket && socket.remoteAddress);
+  const raw = (req && req.socket && req.socket.remoteAddress) || (socket && socket.remoteAddress);
+  return normalizeIp(raw);
 }
 
 /* A device is "nearby" another when both arrive from the same network:
@@ -96,7 +97,7 @@ function sdpText(v) {
 /* Validate an inbound {t:'signal'} message. Returns an error string or ''. */
 function validateSignal(msg) {
   if (!msg || typeof msg !== 'object') return 'bad message';
-  if (typeof msg.to !== 'string' || !msg.to) return 'missing recipient';
+  if (typeof msg.to !== 'string' || !msg.to || msg.to.length > 64) return 'missing recipient';
   const p = msg.payload;
   if (!p || typeof p !== 'object') return 'missing payload';
   const kinds = ['offer', 'answer', 'ice', 'declined'];
@@ -143,7 +144,7 @@ function startServer(port) {
     }
   });
 
-  const wss = new WebSocket.Server({ server: httpServer });
+  const wss = new WebSocket.Server({ server: httpServer, maxPayload: 65536 });
 
   wss.on('connection', (ws, req) => {
     const ip = clientIp(req, ws._socket);
@@ -155,12 +156,13 @@ function startServer(port) {
       if (!msg || typeof msg.t !== 'string') return;
 
       if (msg.t === 'register') {
-        if (typeof msg.id !== 'string' || !msg.id || clients.size >= MAX_CLIENTS) {
+        if (typeof msg.id !== 'string' || !msg.id || msg.id.length > 64 || clients.size >= MAX_CLIENTS) {
           ws.send(JSON.stringify({ t: 'error', msg: 'registration rejected' }));
           return;
         }
         myId = msg.id;
-        const name = String(msg.name || 'Unknown device').slice(0, MAX_NAME) || 'Unknown device';
+        const cleanName = String(msg.name || 'Unknown device').replace(/[\x00-\x1F\x7F]/g, '').trim();
+        const name = cleanName.slice(0, MAX_NAME) || 'Unknown device';
         const priv = msg.private === true;
         clients.set(myId, { id: myId, name, ip, ws, priv, lastSeen: Date.now() });
         ws.send(JSON.stringify({ t: 'registered', id: myId }));

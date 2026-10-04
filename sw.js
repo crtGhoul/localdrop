@@ -1,6 +1,6 @@
 /* LocalDrop service worker — caches the app shell so the installed app
    opens instantly and even works offline on your local network. */
-const CACHE = 'localdrop-v15';
+const CACHE = 'localdrop-v16';
 const ASSETS = [
   './',
   './index.html',
@@ -38,10 +38,16 @@ self.addEventListener('fetch', (e) => {
       (hit) =>
         hit ||
         fetch(e.request).then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(e.request, copy));
+          if (res && res.status === 200 && (res.type === 'basic' || res.type === 'default')) {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(e.request, copy));
+          }
           return res;
-        }).catch(() => caches.match('./index.html'))
+        }).catch(() => {
+          if (e.request.mode === 'navigate') {
+            return caches.match('./index.html');
+          }
+        })
     )
   );
 });
