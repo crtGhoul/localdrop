@@ -4,7 +4,7 @@ Binding conventions for any agent working in this project.
 
 ## Scope & Project
 - **Repo:** `crtGhoul/localdrop`
-- **Path:** `C:\Users\velaz\localdrop`
+- **Path:** repo root (clone of `crtGhoul/localdrop` — any local path works)
 - **Description:** Zero-install, peer-to-peer WebRTC file, message, and link transfer PWA for nearby devices.
 
 ## Landmines (Learned the hard way)

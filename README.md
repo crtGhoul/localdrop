@@ -1,8 +1,12 @@
 # 📡 LocalDrop
 
 A LocalSend-style web app: send **photos, files, text messages and links** between
-nearby devices. No signup, no server, no app install — just open the page on both
+nearby devices. No signup, no account, no app install — just open the page on both
 devices. Everything travels peer-to-peer and encrypted over WebRTC.
+
+## Screenshots
+
+_Coming soon — annotated screenshots and a short pairing walkthrough clip._
 
 ## How pairing works
 
@@ -111,7 +115,9 @@ transfer goes directly between your devices, end-to-end encrypted.
 Your device name is visible in the **Nearby & ready** list while the page
 is open; **🙈 Private mode** (tap panel) hides it from everyone while still
 letting you call out. Incoming calls always need your Accept — nobody can
-silently connect to you.
+silently connect to you. If a direct connection fails, traffic may relay via a
+public TURN server — still encrypted, but the relay operator can see metadata
+(IPs, timing, volume).
 
 No server? The manual Share / Receive code flow keeps working exactly as
 before.
@@ -132,3 +138,7 @@ before.
   hanging.
 - If one device is on mobile data and the other on Wi-Fi, the app falls back
   to a relay server automatically — it may just take a few seconds longer.
+
+## License
+
+GPL-3.0 — see [LICENSE](LICENSE).
