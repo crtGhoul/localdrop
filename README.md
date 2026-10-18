@@ -4,6 +4,8 @@ A LocalSend-style web app: send **photos, files, text messages and links** betwe
 nearby devices. No signup, no account, no app install — just open the page on both
 devices. Everything travels peer-to-peer and encrypted over WebRTC.
 
+Live: [GitHub Pages](https://crtghoul.github.io/localdrop/) · [Cloudflare mirror](https://localdrop-mirror.pages.dev)
+
 ## Screenshots
 
 _Coming soon — annotated screenshots and a short pairing walkthrough clip._
