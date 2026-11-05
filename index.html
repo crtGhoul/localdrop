@@ -11,7 +11,7 @@
 <meta property="og:url" content="https://crtghoul.github.io/localdrop/">
 <meta property="og:image" content="https://crtghoul.github.io/localdrop/icon-512.png">
 <meta name="twitter:card" content="summary">
-<meta name="theme-color" content="#0f172a">
+<meta name="theme-color" content="#080d1a">
 <link rel="manifest" href="manifest.json">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -22,6 +22,26 @@
 <link rel="stylesheet" href="styles.css">
 <script src="qrcode.min.js"></script>
 <script src="zip.js"></script>
+
+<style id="nothing-theme">
+:root{
+  --bg0:#f4f4f4; --bg1:#f4f4f4; --card:#ffffff; --card-hover:#f0f0f0;
+  --line:rgba(0,0,0,.12); --line-glow:rgba(255,199,0,.5);
+  --txt:#040404; --mut:#5c5c5c; --acc:#ffc700; --acc-glow:rgba(255,199,0,.25); --acc2:#040404;
+}
+body{background:#f4f4f4 !important;}
+h1{font-family:Georgia,'Times New Roman',serif !important;}
+h1 em{background:none !important;color:#040404 !important;-webkit-text-fill-color:#040404 !important;}
+button{background:#040404 !important;color:#fff !important;}
+.panel{border-radius:8px !important;box-shadow:0 2px 8px rgba(0,0,0,.08) !important;}
+.cards .card, button.card{border-radius:8px !important;}
+.step .n{background:#040404 !important;color:#fff !important;}
+.status.ok{color:#067647 !important;}
+.status.bad{color:#b91c1c !important;}
+
+button.card{background:#ffffff !important;color:#040404 !important;border:1px solid rgba(0,0,0,.12) !important;}
+details summary{color:#040404 !important;}
+</style>
 </head>
 <body>
 <div class="app">
@@ -33,7 +53,14 @@
   <!-- HOME -->
   <main id="view-home" class="view">
     <h1>Send anything<br>to devices <em>near you.</em></h1>
-    <p class="sub">Photos, files, text &amp; links — straight over your local network. No account, no cloud, no app install.</p>
+    <p class="sub">Photos, files, text &amp; links — straight from device to device, encrypted. No account, no cloud storage, no app install.</p>
+    <section class="panel nearby" aria-label="Nearby devices">
+      <h2>Nearby devices</h2>
+      <p id="nearbyStatus" class="hint" role="status" aria-live="polite">Looking for devices…</p>
+      <div id="nearbyList" class="devlist"></div>
+      <p id="nbDiag" class="hint hidden" role="status" aria-live="polite"></p>
+      <p class="hint">A free matchmaker only introduces your devices — your files then go directly between them. If Nearby can't connect, use Share or Receive codes below.</p>
+    </section>
     <div class="cards">
       <button class="card" id="btnHost">
         <span class="card-icon">📤</span>
@@ -49,45 +76,30 @@
     <button id="installBtn" class="btn primary hidden" style="margin-top:14px">⬇ Install app</button>
     <p id="iosHint" class="hint hidden">📲 On iPhone: tap <b>Share</b> → <b>Add to Home Screen</b> to install LocalDrop like an app.</p>
 
-    <!-- TAP-TO-CONNECT -->
-    <section class="panel" id="tapPanel">
-      <div class="rowline">
-        <label class="fld"><span>This device</span>
-          <input id="nameInput" type="text" maxlength="24" autocomplete="off" placeholder="Naming…">
-        </label>
-        <span id="sigDot" class="sigdot" title="matchmaker status"></span>
-      </div>
-      <p class="hint serverline">🔗 Server: <a id="serverLink" href="https://localdrop-l8ly.onrender.com" target="_blank" rel="noopener">localdrop-l8ly.onrender.com</a></p>
-      <label class="privrow"><input type="checkbox" id="privToggle"> 🙈 Private mode <span class="hint">— hide this device from everyone's list</span></label>
-      <h3>Nearby &amp; ready</h3>
-      <details class="howto">
-        <summary>How does tap-to-connect work?</summary>
-        <ol>
-          <li>Open this page on <b>both</b> devices (same Wi-Fi works best).</li>
-          <li>Each device shows up in the other's <b>Nearby &amp; ready</b> list — tap one to call it.</li>
-          <li>Accept on the other device. Done — send anything.</li>
-        </ol>
-        <p class="hint">A free matchmaker server just introduces your devices — your photos and files then fly <b>directly</b> between them (WebRTC), never through the server. Devices on your network are marked nearby. Want to stay invisible? Turn on 🙈 Private mode above — you can still call out. First visit of the day can take ~30–60s: the free server sleeps when idle. No devices showing? You can always pair with a Share / Receive code instead.</p>
-      </details>
-      <p id="sigNotice" class="hint hidden"></p>
-      <div id="rosterList" class="devlist"></div>
-      <div id="callState" class="hidden"></div>
-      <h3>Known devices</h3>
-      <div id="knownList" class="devlist"></div>
-      <details class="settings">
-        <summary>⚙️ Matchmaker server</summary>
-        <label class="fld"><span>Server URL</span>
-          <input id="serverInput" type="url" inputmode="url" autocomplete="off"
-                 placeholder="wss://localdrop-l8ly.onrender.com (default)">
-        </label>
-        <p class="hint">Blank = use the built-in free server. Want your own instead?
-          <a class="deploylink" href="https://render.com/deploy?repo=https://github.com/crtGhoul/localdrop" target="_blank" rel="noopener">Deploy a free one on Render</a>
-          (takes ~2 minutes), then paste its wss:// URL above — or clear the
-          field to turn tap-to-connect off. Without a server you can still use
-          Share / Receive codes below.</p>
-        <p class="hint">App version: <b id="appVersion">v16</b></p>
-      </details>
-    </section>
+    <details class="howto">
+      <summary>How does pairing work?</summary>
+      <ol>
+        <li>One device taps <b>Share</b> and gets a code (or QR).</li>
+        <li>The other taps <b>Receive</b>, pastes the code (or scans the QR), and gets a reply code.</li>
+        <li>The sharer pastes the reply code and taps Connect. Done — send anything.</li>
+      </ol>
+      <p class="hint">Your photos and files fly <b>directly</b> between the devices (WebRTC) — no server ever sees them, and codes are single-use. Same Wi-Fi works best.</p>
+      <p class="hint">Once connected, chat and files are <b>end-to-end encrypted</b> between your devices (AES-GCM, with a safety code you can compare) when both run v21.3 — older versions use WebRTC's built-in transport encryption. Nothing is stored: keys and chats vanish when you disconnect. Big files (64 MB+) stream straight to device storage instead of filling memory, so multi-GB transfers don't blow up your phone's RAM.</p>
+    </details>
+    <details class="settings">
+      <summary>⚙️ Connection settings</summary>
+      <label class="fld"><span>Your TURN relay (optional)</span>
+        <input id="turnUrl" type="text" autocomplete="off" placeholder="turn:your-server.example:3478">
+      </label>
+      <label class="fld"><span>TURN username</span>
+        <input id="turnUser" type="text" autocomplete="off">
+      </label>
+      <label class="fld"><span>TURN password</span>
+        <input id="turnPass" type="password" autocomplete="off">
+      </label>
+      <p class="hint">A TURN relay is only used when a direct connection can't get through (some mobile and office networks). A free public relay is already built in as a fallback; your own is used in addition. Stored only on this device.</p>
+      <p class="hint">App version: <b id="appVersion">v21.3</b></p>
+    </details>
 
     <p class="hint">🔒 Peer-to-peer &amp; encrypted (WebRTC). Open this page on both devices — phones, tablets &amp; computers on the same Wi-Fi.</p>
   </main>
@@ -105,6 +117,7 @@
     <div class="step"><span class="n">2</span><p>Paste their reply code here:</p></div>
     <textarea id="hostAnswer" rows="3" placeholder="Paste reply code…"></textarea>
     <button id="btnConnect" class="btn primary">Connect</button>
+    <button id="btnScanHost" class="btn scanbtn">📷 Scan their reply QR instead</button>
   </main>
 
   <!-- JOIN -->
@@ -114,12 +127,14 @@
     <div class="step"><span class="n">1</span><p>Paste the sharer's code:</p></div>
     <textarea id="joinCode" rows="3" placeholder="Paste share code…"></textarea>
     <button id="btnMakeReply" class="btn primary">Create my reply code</button>
+    <button id="btnScanJoin" class="btn scanbtn">📷 Scan their QR code instead</button>
     <div id="replyWrap" class="hidden">
       <div class="step"><span class="n">2</span><p>Give this reply code back to the sharer:</p></div>
       <div class="codeRow">
         <textarea id="joinReply" readonly rows="3"></textarea>
         <button id="copyJoin" class="btn small">Copy</button>
       </div>
+      <div id="qrReply" class="qr"></div>
       <p class="hint">Waiting for them to paste it and connect…</p>
     </div>
   </main>
@@ -136,6 +151,7 @@
         </div>
       </div>
     </div>
+    <p id="connInfo" class="conninfo" aria-live="polite"></p>
     <div id="messages" class="messages"></div>
     <div id="dropOverlay" class="dropoverlay hidden">
       <div class="dropcard">
@@ -143,6 +159,10 @@
         <div class="droptitle">Drop files to send</div>
         <div class="dropsub">they go straight to the other device</div>
       </div>
+    </div>
+    <div id="hud" class="hud hidden">
+      <canvas id="hudCanvas" width="520" height="40"></canvas>
+      <span id="hudText" class="hudtext"></span>
     </div>
     <div class="composer">
       <label class="attach" title="Send photo or file" aria-label="Send photo or file">📎<input type="file" id="fileInput" hidden multiple></label>
@@ -153,19 +173,33 @@
     </div>
   </main>
 
-  <!-- INCOMING CALL -->
-  <div id="callModal" class="modal hidden">
+  <!-- NEARBY INCOMING CALL -->
+  <div id="nearbyModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="nearbyCaller">
     <div class="sheet">
-      <div class="ringicon">📞</div>
-      <h2 id="callTitle">Incoming connection</h2>
-      <p class="hint" id="callSub">They'll be able to send you files, photos and messages.</p>
+      <div class="ringicon">📡</div>
+      <h2 id="nearbyCaller">A device wants to connect</h2>
+      <p class="hint">Accept to connect and start sending files.</p>
       <div class="mrow">
-        <button id="btnAccept" class="btn primary">Accept</button>
-        <button id="btnDecline" class="btn">Decline</button>
+        <button id="nearbyAccept" class="btn primary">Accept</button>
+        <button id="nearbyDecline" class="btn">Decline</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CAMERA SCANNER -->
+  <div id="scanModal" class="modal hidden">
+    <div class="sheet">
+      <div class="ringicon">📷</div>
+      <h2>Scan a code</h2>
+      <video id="scanVideo" playsinline muted></video>
+      <p id="scanNote" class="hint">Point the camera at the other device’s QR code…</p>
+      <div class="mrow">
+        <button id="scanCancel" class="btn">Cancel</button>
       </div>
     </div>
   </div>
 </div>
 <script src="app.js"></script>
+<p style="text-align:center;margin:2em 0 1em"><a href="https://velazquez-lab.pages.dev/" target="_blank" rel="noopener">More free tools — Velazquez Lab</a></p>
 </body>
 </html>
