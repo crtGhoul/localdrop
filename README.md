@@ -15,12 +15,18 @@ _Coming soon — annotated screenshots and a short pairing walkthrough clip._
 ## How pairing works
 
 GitHub Pages only hosts static files, so there's no server to do automatic
-device discovery like the native LocalSend app. Instead, pairing uses a quick
-code exchange (one time per session):
+device discovery like the native LocalSend app. Pairing uses a quick
+code exchange (one time per session) — **this is the proven path**:
 
 1. Device A taps **Share** → gets a code + QR code.
-2. Device B taps **Receive**, scans/pastes A's code → gets a reply code.
-3. Device A pastes B's reply code → **connected**. Chat away.
+2. Device B taps **Receive**, scans/pastes A's code → gets a reply code (+ its own QR).
+3. Device A pastes B's reply code — or scans B's reply QR → **connected**. Chat away.
+
+Scanning works two ways: your phone's camera app can read the QRs, and on
+browsers with built-in QR detection (Chrome on Android/desktop) the
+**📷 Scan** buttons inside LocalDrop use the camera directly. On browsers
+without it (Safari, Firefox for now) the scan button says so and pasting the
+code works exactly the same.
 
 ## Deploy to GitHub Pages
 
@@ -64,8 +70,30 @@ LocalDrop is installable, so it feels like the real store app:
 - Both devices need to be able to reach each other (same Wi-Fi is the easy case).
 - The page itself needs internet once to load (it's hosted on GitHub Pages);
   the actual file/message transfer then goes direct between devices.
-- Files are streamed in 16 KB chunks over an ordered, reliable data channel with
-  backpressure, so large files are fine.
+- Files are streamed in small chunks over an ordered, reliable data channel
+  with event-driven backpressure (the sender never queues more than ~1 MB
+  ahead of the wire), so large files are fine.
+- **Huge files (10 GB+):** on the receiving side, files of 64 MB and up are
+  streamed straight into the browser's private device storage (OPFS)
+  chunk-by-chunk instead of accumulating in RAM — memory stays flat no
+  matter the file size. Browsers without OPFS use the memory path instead,
+  and if a storage write fails mid-transfer the file aborts with a clear
+  note rather than corrupting silently. (A checksum is shown for files up
+  to 512 MB; larger files skip it.)
+- **End-to-end encrypted (v19):** on top of WebRTC's transport encryption,
+  two current-version devices exchange ephemeral ECDH keys when the channel
+  opens and encrypt every message and file chunk with AES-GCM before it
+  touches the channel. The key is derived with a hash of the connection
+  codes mixed in, lives only in memory, and dies with the connection —
+  chats are ephemeral and never stored. Both devices display the same
+  safety code so you can compare them out loud. Older versions connect
+  exactly as before (transport encryption only) and the chat header says
+  which mode you're in.
+- **Prove it:** `node test/webrtc-rig.mjs 10240 chromium` runs two real
+  browser pages through a real 10 GB transfer and prints measured
+  throughput and peak sender memory (needs `npm i playwright-core` and a
+  browser binary; on machines where UDP is blocked it reports the ICE
+  failure instead of inventing numbers).
 - **Drag & drop:** on a computer, drag files straight onto the chat while
   connected — they send immediately. You can also use the 📎 button or paste
   images from the clipboard.
@@ -76,64 +104,32 @@ LocalDrop is installable, so it feels like the real store app:
 - **Approve incoming files:** the other side gets an Accept / Decline prompt
   before a file starts transferring (both devices on the latest version).
 - **Cancel & speed:** transfers show live MB/s and can be cancelled mid-flight
-  with the ✕ on the file card.
+  with the ✕ on the file card. While connected, the chat shows a live speed
+  graph plus the real connection path (direct / relayed) and latency, read
+  from WebRTC's own stats — nothing is estimated.
+- **Checksum verified:** on the current version both sides compute a
+  SHA-256 of each file; the receiver's card shows "✓ checksum verified"
+  only when the bytes are identical to what the sender hashed.
 - **Download all & share:** when you've received 2+ files, a **⬇ All** button
   in the chat header downloads everything at once as a single ZIP (folder
   structure preserved, no extra libraries). The **📤** button hands the files
   to your phone's share sheet instead — AirDrop, WhatsApp, whatever you use.
 
-## Tap-to-connect server
+## Pairing — codes only (since v20)
 
-Tired of copying codes? The app ships with a built-in free **matchmaker
-server** (`wss://localdrop-l8ly.onrender.com`) — just open the page on both
-devices and they show up under **Nearby & ready**. Tap a device to connect.
-Devices you've connected to are remembered under **Known devices**. (You can
-swap in your own server under ⚙️ Matchmaker server in settings.)
+LocalDrop pairs with the Share / Receive codes above — that is the whole
+pairing story, and it needs no server at all. Chat and files still go
+directly between your devices, end-to-end encrypted; if a direct connection
+fails, traffic may relay via a public TURN server — still encrypted, but the
+relay operator can see metadata (IPs, timing, volume).
 
-Want your own? Run the tiny matchmaker in `server/`:
-
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/crtGhoul/localdrop)
-
-1. Click **Deploy to Render** above.
-2. Create (or sign in to) a free Render account — it builds and starts the
-   server automatically.
-3. Copy your service URL (looks like
-   `https://localdrop-signaling.onrender.com`), change `https://` to `wss://`,
-   and paste it into the **Matchmaker server** field in the app's settings.
-
-Heads-up: free-tier servers sleep after ~15 minutes idle, so the first
-connection of the day can take ~30 seconds while it wakes up. After that,
-pairing is instant.
-
-**Keeping the server updated:** the app on GitHub Pages updates itself, but
-the server on Render only picks up new code when Render redeploys it. If you
-connected the Render service to this GitHub repo, it redeploys automatically
-on every push — check the Render dashboard to confirm the latest deploy
-finished. If it didn't, use **Manual Deploy → Deploy latest commit**. You can
-check the app side any time under ⚙️ Matchmaker server → **App version** at
-the bottom of the settings.
-
-**Privacy:** the server never sees your messages or files — it only passes
-along the connection setup (like exchanging phone numbers). The actual
-transfer goes directly between your devices, end-to-end encrypted.
-Your device name is visible in the **Nearby & ready** list while the page
-is open; **🙈 Private mode** (tap panel) hides it from everyone while still
-letting you call out. Incoming calls always need your Accept — nobody can
-silently connect to you. If a direct connection fails, traffic may relay via a
-public TURN server — still encrypted, but the relay operator can see metadata
-(IPs, timing, volume).
-
-No server? The manual Share / Receive code flow keeps working exactly as
-before.
+(An experimental tap-to-connect matchmaker shipped in v17–v19 and was
+removed in v20 — it never proved itself on real hardware the way the codes
+did. Its code, including the tiny signaling server, remains in this repo's
+history at tag `v19`.)
 
 ## If connecting fails
 
-- **"Matchmaker: offer/answer needs sdp"?** Your Render server is running old
-  code — redeploy it (see "Keeping the server updated" above), then try the
-  call again.
-- **Calls never arrive on the other device?** Make sure both devices show the
-  same **App version** (⚙️ Matchmaker server → bottom of the settings). If one
-  is behind, close all its LocalDrop tabs and reopen it.
 - **Both devices on the same Wi-Fi** — that's the fast, reliable path.
 - **Codes are single-use.** If you tap Share again, the old codes stop working —
   generate fresh ones on both sides.
